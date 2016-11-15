@@ -29,6 +29,8 @@ class Aircraft(Model):
         Wzfw = Variable("W_{zfw}", "lbf", "zero fuel weight")
         Wpay = Variable("W_{pay}", 10, "lbf", "payload weight")
         Wavn = Variable("W_{avn}", 8, "lbf", "avionics weight")
+        lantenna = Variable("l_{antenna}", 13.4, "in", "antenna length")
+        wantenna = Variable("w_{antenna}", 10.2, "in", "antenna width")
 
         constraints = [
             Wzfw >= sum(summing_vars(components, "W")) + Wpay + Wavn,
@@ -42,7 +44,14 @@ class Aircraft(Model):
                 / self.wing["b"]),
             self.wing["C_{L_{max}}"]/self.wing["m_w"] <= (
                 self.empennage.horizontaltail["C_{L_{max}}"]
-                / self.empennage.horizontaltail["m_h"])
+                / self.empennage.horizontaltail["m_h"]),
+            # enforce antenna sticking on the tail
+            self.empennage.verticaltail["c_{t_v}"] >= wantenna,
+            self.empennage.verticaltail["b_v"] >= lantenna,
+            # enforce a cruciform with the htail infront of vertical tail
+            self.empennage.tailboom["l"] >= (
+                self.empennage.horizontaltail["l_h"]
+                + self.empennage.horizontaltail["c_{r_h}"])
             ]
 
         Model.__init__(self, None, [components, constraints],
@@ -274,7 +283,9 @@ class Mission(Model):
 
 if __name__ == "__main__":
     M = Mission(DF70=True)
-    M.substitutions.update({"b": 24})
+    subs = {"b": 24, "l_Mission, Aircraft, Empennage, TailBoom": 6.5,
+            "AR_v": 1.0, "A": 24}
+    M.substitutions.update(subs)
     # JHO.debug(solver="mosek")
     sol = M.solve("mosek")
     print sol.table()
