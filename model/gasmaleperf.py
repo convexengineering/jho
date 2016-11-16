@@ -93,6 +93,9 @@ class AircraftPerf(Model):
                          static.empennage.verticaltail,
                          static.empennage.tailboom]
 
+        for p in self.engine.varkeys["P_{avn}"]:
+            self.engine.substitutions.update({p: 65})
+
         Wend = Variable("W_{end}", "lbf", "vector-end weight")
         Wstart = Variable("W_{start}", "lbf", "vector-begin weight")
         CD = Variable("C_D", "-", "drag coefficient")
@@ -283,9 +286,11 @@ class Mission(Model):
 
 if __name__ == "__main__":
     M = Mission(DF70=True)
-    subs = {"b": 24, "l_Mission, Aircraft, Empennage, TailBoom": 6.5,
-            "AR_v": 1.0, "A": 24}
+    subs = {"b": 24, "l_Mission, Aircraft, Empennage, TailBoom": 7.0,
+            "AR_v": 1.5, "A": 24, "SM_{corr}": 0.5, "AR_h": 4}
     M.substitutions.update(subs)
     # JHO.debug(solver="mosek")
     sol = M.solve("mosek")
     print sol.table()
+    Lamv = np.arctan(sol("c_{r_v}")*(1-0.7)/sol("b_v")/0.75)*180/np.pi
+
