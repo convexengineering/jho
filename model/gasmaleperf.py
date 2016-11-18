@@ -28,6 +28,7 @@ class Aircraft(Model):
 
         Wzfw = Variable("W_{zfw}", "lbf", "zero fuel weight")
         Wpay = Variable("W_{pay}", 10, "lbf", "payload weight")
+        Ppay = Variable("P_{pay}", 10, "W", "payload power")
         Wavn = Variable("W_{avn}", 8, "lbf", "avionics weight")
         lantenna = Variable("l_{antenna}", 13.4, "in", "antenna length")
         wantenna = Variable("w_{antenna}", 10.2, "in", "antenna width")
@@ -51,7 +52,8 @@ class Aircraft(Model):
             # enforce a cruciform with the htail infront of vertical tail
             self.empennage.tailboom["l"] >= (
                 self.empennage.horizontaltail["l_h"]
-                + self.empennage.horizontaltail["c_{r_h}"])
+                + self.empennage.horizontaltail["c_{r_h}"]),
+            Ppay == Ppay
             ]
 
         Model.__init__(self, None, [components, constraints],
@@ -93,9 +95,6 @@ class AircraftPerf(Model):
                          static.empennage.verticaltail,
                          static.empennage.tailboom]
 
-        for p in self.engine.varkeys["P_{avn}"]:
-            self.engine.substitutions.update({p: 65})
-
         Wend = Variable("W_{end}", "lbf", "vector-end weight")
         Wstart = Variable("W_{start}", "lbf", "vector-begin weight")
         CD = Variable("C_D", "-", "drag coefficient")
@@ -116,9 +115,7 @@ class AircraftPerf(Model):
 
 class FlightState(Model):
     "define environment state during a portion of an aircraft mission"
-    def __init__(self, alt, onStation, wind, **kwargs):
-
-        self.onStation = onStation
+    def __init__(self, alt, wind, **kwargs):
 
         mu = Variable("\\mu", 1.628e-5, "N*s/m^2", "dynamic viscosity")
         rho = Variable("\\rho", "kg/m^3", "air density")
@@ -160,13 +157,13 @@ class FlightState(Model):
 
 class FlightSegment(Model):
     "creates flight segment for aircraft"
-    def __init__(self, N, aircraft, alt=15000, onStation=False, wind=False,
+    def __init__(self, N, aircraft, alt=15000, wind=False,
                  etap=0.7, **kwargs):
 
         self.aircraft = aircraft
 
         with vectorize(N):
-            self.fs = FlightState(alt, onStation, wind)
+            self.fs = FlightState(alt, wind)
             self.aircraftPerf = self.aircraft.flight_model(self.aircraft,
                                                            self.fs)
             self.slf = SteadyLevelFlight(self.fs, self.aircraft,
@@ -188,9 +185,9 @@ class FlightSegment(Model):
 
 class Loiter(Model):
     "make a loiter flight segment"
-    def __init__(self, N, aircraft, alt=15000, onStation=False, wind=False,
+    def __init__(self, N, aircraft, alt=15000, wind=False,
                  etap=0.7, **kwargs):
-        fs = FlightSegment(N, aircraft, alt, onStation, wind, etap)
+        fs = FlightSegment(N, aircraft, alt, wind, etap)
 
         t = Variable("t", "days", "time loitering")
         constraints = [fs.be["t"] >= t/N]
@@ -199,20 +196,18 @@ class Loiter(Model):
 
 class Cruise(Model):
     "make a cruise flight segment"
-    def __init__(self, N, aircraft, alt=15000, onStation=False, wind=False,
-                 etap=0.7, R=200, **kwargs):
-        fs = FlightSegment(N, aircraft, alt, onStation, wind, etap)
+    def __init__(self, N, aircraft, alt=15000, wind=False, etap=0.7, R=200):
+        fs = FlightSegment(N, aircraft, alt, wind, etap)
 
         R = Variable("R", R, "nautical_miles", "Range to station")
         constraints = [R/N <= fs["V"]*fs.be["t"]]
 
-        Model.__init__(self, None, [fs, constraints], **kwargs)
+        Model.__init__(self, None, [fs, constraints])
 
 class Climb(Model):
     "make a climb flight segment"
-    def __init__(self, N, aircraft, alt=15000, onStation=False, wind=False,
-                 etap=0.7, dh=15000, **kwargs):
-        fs = FlightSegment(N, aircraft, alt, onStation, wind, etap)
+    def __init__(self, N, aircraft, alt=15000, wind=False, etap=0.7, dh=15000):
+        fs = FlightSegment(N, aircraft, alt, wind, etap)
 
         with vectorize(N):
             hdot = Variable("\\dot{h}", "ft/min", "Climb rate")
@@ -229,7 +224,7 @@ class Climb(Model):
                             / fs["V"]),
             ]
 
-        Model.__init__(self, None, [fs, constraints], **kwargs)
+        Model.__init__(self, None, [fs, constraints])
 
 class SteadyLevelFlight(Model):
     "steady level flight model"
@@ -262,7 +257,7 @@ class Mission(Model):
 
         climb1 = Climb(10, JHO, alt=np.linspace(0, 15000, 11)[1:], etap=0.508)
         cruise1 = Cruise(1, JHO, etap=0.684, R=180)
-        loiter1 = Loiter(5, JHO, etap=0.647, onStation=True)
+        loiter1 = Loiter(5, JHO, etap=0.647)
         cruise2 = Cruise(1, JHO, etap=0.684)
         mission = [climb1, cruise1, loiter1, cruise2]
 
@@ -271,7 +266,10 @@ class Mission(Model):
             Wfueltot >= sum(fs["W_{fuel-fs}"] for fs in mission),
             mission[-1]["W_{end}"][-1] >= JHO["W_{zfw}"],
             Wcent >= Wfueltot + sum(summing_vars(JHO.smeared_loads, "W")),
-            LS == mtow/JHO.wing["S"]
+            LS == mtow/JHO.wing["S"],
+            loiter1["P_{total}"] >= (loiter1["P_{shaft}"] + (
+                loiter1["P_{avn}"] + JHO["P_{pay}"])
+                                     / loiter1["\\eta_{alternator}"])
             ]
 
         for i, fs in enumerate(mission[1:]):
@@ -289,6 +287,8 @@ if __name__ == "__main__":
     subs = {"b": 24, "l_Mission, Aircraft, Empennage, TailBoom": 7.0,
             "AR_v": 1.5, "A": 24, "SM_{corr}": 0.5, "AR_h": 4}
     M.substitutions.update(subs)
+    for p in M.varkeys["P_{avn}"]:
+        M.substitutions.update({p: 65})
     # JHO.debug(solver="mosek")
     sol = M.solve("mosek")
     print sol.table()
