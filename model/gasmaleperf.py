@@ -285,7 +285,7 @@ class Mission(Model):
 if __name__ == "__main__":
     M = Mission(DF70=True)
     subs = {"b": 24, "l_Mission, Aircraft, Empennage, TailBoom": 7.0,
-            "AR_v": 1.5, "A": 24, "SM_{corr}": 0.5, "AR_h": 4}
+            "AR_v": 1.5, "AR": 24, "SM_{corr}": 0.5, "AR_h": 4}
     M.substitutions.update(subs)
     for p in M.varkeys["P_{avn}"]:
         M.substitutions.update({p: 65})
