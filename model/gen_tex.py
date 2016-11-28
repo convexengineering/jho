@@ -1,4 +1,5 @@
 from gpkit.small_scripts import unitstr
+import gpkit
 
 def gen_model_tex(model, modelname, texname=None):
     if texname:
@@ -39,21 +40,49 @@ def gen_model_tex(model, modelname, texname=None):
         modeltex = "\n".join(lines[:1] + lines[3:])
         f.write("$$ %s $$" % modeltex)
 
-def find_submodels(models, modelnames):
+def find_models(csets, used_cset=[], models=[], modelnames=[]):
+    runagain = 0
+    for c in csets:
+        if c not in used_cset:
+            used_cset.append(c)
+            for m in c:
+                if type(m) == gpkit.ConstraintSet:
+                    csets.append(m)
+                    runagain = 1
+                else:
+                    if isinstance(m, gpkit.Model):
+                        if m.__class__.__name__ not in modelnames:
+                            models.append(m)
+                            modelnames.append(m.__class__.__name__)
+
+    print runagain
+    if runagain == 0:
+        return models, modelnames
+    elif runagain != 0:
+        return find_models(csets, used_cset, models, modelnames)
+
+def find_submodels(models, used_models, modelnames):
     runagain = 0
     for m in models:
-        if "submodels" in m.__dict__.keys():
-            for sub in m.submodels:
-                if sub.__class__.__name__ not in modelnames:
-                    models.append(sub)
-                    modelnames.append(sub.__class__.__name__)
-                    runagain += 1
+        if m not in used_models:
+            used_models.append(m)
+            for subm in m:
+                if type(subm) == gpkit.ConstraintSet:
+                    cmodels, cmns = find_models([subm])
+                    for cm in cmodels:
+                        if cm.__class__.__name__ not in modelnames:
+                            models.append(cm)
+                            modelnames.append(cm.__class__.__name__)
+                            runagain = 1
                 else:
-                    pass
-        else:
-            pass
+                    if isinstance(subm, gpkit.Model):
+                        if subm.__class__.__name__ not in modelnames:
+                            models.append(subm)
+                            modelnames.append(subm.__class__.__name__)
+                            runagain = 1
+
     if runagain > 0:
-        return find_submodels(models, modelnames)
+        return find_submodels(models, used_models, modelnames)
     else:
         return models, modelnames
 
