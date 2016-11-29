@@ -1,6 +1,8 @@
 from gpkit.small_scripts import unitstr
 import gpkit
 
+latex_opers = {"<=": " \\leq ", ">=": " \\geq ", "=": " = "}
+
 def gen_model_tex(model, modelname, texname=None):
     if texname:
         filename = texname
@@ -18,7 +20,7 @@ def gen_model_tex(model, modelname, texname=None):
             if name in varnames:
                 pass
             else:
-                if var.models[0] == modelname:
+                if var.models[-1] == modelname:
                     varnames.append(name)
                     unitstring = var.unitstr()[1:]
                     unitstring = "$[%s]$" % unitstring if unitstring else ""
@@ -31,14 +33,33 @@ def gen_model_tex(model, modelname, texname=None):
         f.write("\\end{longtable}\n")
 
     with open('tex/%s.cnstrs.generated.tex' % filename, 'w') as f:
-        l1 = model.latex(excluded=["models"]).replace("[ll]", "{ll}")
-        models, modelnames = find_submodels([model], [])
-        for m in modelnames:
-            if m in l1:
-                l1 = l1.replace("_{%s}" % m, "")
-        lines = l1.split("\n")
-        modeltex = "\n".join(lines[:1] + lines[3:])
-        f.write("$$ %s $$" % modeltex)
+        lines = []
+        for cs in model:
+            if not hasattr(cs, "__len__"):
+                cs = [cs]
+            for eq in cs:
+                if isinstance(eq, gpkit.nomials.nomial_math.ScalarSingleEquationConstraint):
+                    lines.append(eq.latex(excluded=["models", "units"]))
+                elif isinstance(eq, gpkit.constraints.array.ArrayConstraint):
+                    if hasattr(eq, "__len__"):
+                        eq = eq[0]
+                    if hasattr(eq.left, "__len__"):
+                        left = eq.left[0].latex(excluded=["models", "units",
+                                                          "idx"])
+                    else:
+                        left = eq.left.latex(excluded=["models", "units",
+                                                       "idx"])
+                    if hasattr(eq.right, "__len__"):
+                        right = eq.right[0].latex(excluded=["models", "units",
+                                                            "idx"])
+                    else:
+                        right = eq.right.latex(excluded=["models", "units",
+                                                         "idx"])
+                    oper = latex_opers[eq.oper]
+                    lines.append(left+oper+right)
+
+        for l in lines:
+            f.write("$$ %s $$" % l)
 
 def find_models(csets, used_cset=[], models=[], modelnames=[]):
     runagain = 0

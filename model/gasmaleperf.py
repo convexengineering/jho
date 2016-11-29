@@ -211,7 +211,7 @@ class Climb(Model):
         with Vectorize(N):
             hdot = Variable("\\dot{h}", "ft/min", "Climb rate")
 
-        deltah = Variable("\\Delta_h", dh, "ft", "altitude difference")
+        deltah = Variable("\\Delta h", dh, "ft", "altitude difference")
         hdotmin = Variable("\\dot{h}_{min}", 100, "ft/min",
                            "minimum climb rate")
 
