@@ -48,7 +48,7 @@ class Aircraft(Model):
                 / self.empennage.horizontaltail["m_h"]),
             # enforce antenna sticking on the tail
             self.empennage.verticaltail["c_{t_v}"] >= wantenna,
-            self.empennage.verticaltail["b_v"] >= lantenna,
+            self.empennage.verticaltail["b"] >= lantenna,
             # enforce a cruciform with the htail infront of vertical tail
             self.empennage.tailboom["l"] >= (
                 self.empennage.horizontaltail["l_h"]
@@ -105,6 +105,8 @@ class AircraftPerf(Model):
         for dc, dm in zip(areadragcomps, areadragmodel):
             if "C_f" in dm.varkeys:
                 dvars.append(dm["C_f"]*dc["S"]/static.wing["S"])
+            if "C_d" in dm.varkeys:
+                dvars.append(dm["C_d"]*dc["S"]/static.wing["S"])
 
         constraints = [Wend == Wend,
                        Wstart == Wstart,
@@ -283,7 +285,8 @@ class Mission(Model):
 
 if __name__ == "__main__":
     M = Mission(DF70=True)
-    subs = {"b": 24, "l_Mission, Aircraft, Empennage, TailBoom": 7.0,
+    subs = {"b_Mission, Aircraft, Wing": 24,
+            "l_Mission, Aircraft, Empennage, TailBoom": 7.0,
             "AR_v": 1.5, "AR": 24, "SM_{corr}": 0.5, "AR_h": 4}
     M.substitutions.update(subs)
     for p in M.varkeys["P_{avn}"]:
