@@ -55,13 +55,12 @@ def find_models(csets, used_cset=[], models=[], modelnames=[]):
                             models.append(m)
                             modelnames.append(m.__class__.__name__)
 
-    print runagain
     if runagain == 0:
         return models, modelnames
     elif runagain != 0:
         return find_models(csets, used_cset, models, modelnames)
 
-def find_submodels(models, used_models, modelnames):
+def find_submodels(models, modelnames, used_models=[]):
     runagain = 0
     for m in models:
         if m not in used_models:
@@ -82,7 +81,7 @@ def find_submodels(models, used_models, modelnames):
                             runagain = 1
 
     if runagain > 0:
-        return find_submodels(models, used_models, modelnames)
+        return find_submodels(models, modelnames, used_models)
     else:
         return models, modelnames
 

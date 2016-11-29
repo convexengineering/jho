@@ -8,7 +8,7 @@ from gpkitmodels.aircraft.GP_submodels.empennage import Empennage
 from gpkitmodels.aircraft.GP_submodels.tail_boom import TailBoomState
 from gpkitmodels.aircraft.GP_submodels.tail_boom_flex import TailBoomFlexibility
 from helpers import summing_vars
-from gpkit import Model, Variable, vectorize, units
+from gpkit import Model, Variable, Vectorize, units
 
 # pylint: disable=invalid-name
 
@@ -117,7 +117,6 @@ class FlightState(Model):
     "define environment state during a portion of an aircraft mission"
     def __init__(self, alt, wind, **kwargs):
 
-        mu = Variable("\\mu", 1.628e-5, "N*s/m^2", "dynamic viscosity")
         rho = Variable("\\rho", "kg/m^3", "air density")
         h = Variable("h", alt, "ft", "altitude")
         href = Variable("h_{ref}", 15000, "ft", "Reference altitude")
@@ -162,7 +161,7 @@ class FlightSegment(Model):
 
         self.aircraft = aircraft
 
-        with vectorize(N):
+        with Vectorize(N):
             self.fs = FlightState(alt, wind)
             self.aircraftPerf = self.aircraft.flight_model(self.aircraft,
                                                            self.fs)
@@ -209,7 +208,7 @@ class Climb(Model):
     def __init__(self, N, aircraft, alt=15000, wind=False, etap=0.7, dh=15000):
         fs = FlightSegment(N, aircraft, alt, wind, etap)
 
-        with vectorize(N):
+        with Vectorize(N):
             hdot = Variable("\\dot{h}", "ft/min", "Climb rate")
 
         deltah = Variable("\\Delta_h", dh, "ft", "altitude difference")
@@ -245,7 +244,7 @@ class SteadyLevelFlight(Model):
 
 class Mission(Model):
     "creates flight profile"
-    def __init__(self, DF70=False, **kwargs):
+    def __init__(self, DF70=False, wind=False, **kwargs):
 
         mtow = Variable("MTOW", "lbf", "max-take off weight")
         Wcent = Variable("W_{cent}", "lbf", "center aircraft weight")
@@ -255,10 +254,10 @@ class Mission(Model):
         JHO = Aircraft(Wfueltot, DF70)
         loading = JHO.loading(JHO, Wcent)
 
-        climb1 = Climb(10, JHO, alt=np.linspace(0, 15000, 11)[1:], etap=0.508)
-        cruise1 = Cruise(1, JHO, etap=0.684, R=180)
-        loiter1 = Loiter(5, JHO, etap=0.647)
-        cruise2 = Cruise(1, JHO, etap=0.684)
+        climb1 = Climb(10, JHO, alt=np.linspace(0, 15000, 11)[1:], etap=0.508, wind=wind)
+        cruise1 = Cruise(1, JHO, etap=0.684, R=180, wind=wind)
+        loiter1 = Loiter(5, JHO, etap=0.647, wind=wind)
+        cruise2 = Cruise(1, JHO, etap=0.684, wind=wind)
         mission = [climb1, cruise1, loiter1, cruise2]
 
         constraints = [
@@ -292,5 +291,5 @@ if __name__ == "__main__":
     # JHO.debug(solver="mosek")
     sol = M.solve("mosek")
     print sol.table()
-    Lamv = np.arctan(sol("c_{r_v}")*(1-0.7)/sol("b_v")/0.75)*180/np.pi
+    # Lamv = np.arctan(sol("c_{r_v}")*(1-0.7)/sol("b_v")/0.75)*180/np.pi
 
