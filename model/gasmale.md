@@ -193,11 +193,9 @@ After deciding on the 150 lb aircraft to meet with a 1 day margin on the loiter 
 
 ```python
 #inPDF: replace with tex/sol.generated.tex
-# M = Mission(DF70=True)
-# sol = M.solve("mosek")
-# 
-# with open("tex/sol.generated.tex", "w") as f:
-#     f.write(sol.table(latex=True))
+M = Mission(DF70=True)
+sol = M.solve("mosek")
+
 ```
 
 By fixing the following variables to their respective values we were also able to generate performance curves. 
@@ -205,14 +203,15 @@ By fixing the following variables to their respective values we were also able t
 ```python
 #inPDF: replace with tex/fixvars.table.generated.tex
 
-# vars_to_fix = {"b": 24, "l_Mission, Aircraft, Empennage, TailBoom": 7.0,
-#                "AR_v": 1.5, "AR": 24, "SM_{corr}": 0.5, "AR_h": 4}
-# gen_fixvars_tex(M, sol, vars_to_fix)
-# for p in M.varkeys["P_{avn}"]:
-#     M.substitutions.update({p: 65})
-# 
-# fix_vars(M, sol, vars_to_fix)
-# sol = M.solve("mosek") # check for solving errors
+vars_to_fix = {"b_Mission, Aircraft, Wing": 24, "l_Mission, Aircraft, Empennage, TailBoom": 7.0,
+               "AR_v": 1.5, "AR": 24, "SM_{corr}": 0.5, "AR_h": 4}
+M.substitutions.update(vars_to_fix)
+for p in M.varkeys["P_{avn}"]:
+    M.substitutions.update({p: 65})
+
+sol = M.solve("mosek") # check for solving errors
+with open("tex/sol.generated.tex", "w") as f:
+    f.write(sol.table(latex=True))
 ```
 
 ## Sweeps
