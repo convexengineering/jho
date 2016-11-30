@@ -103,10 +103,10 @@ class AircraftPerf(Model):
 
         dvars = []
         for dc, dm in zip(areadragcomps, areadragmodel):
-            if "C_f" in dm.varkeys:
-                dvars.append(dm["C_f"]*dc["S"]/static.wing["S"])
             if "C_d" in dm.varkeys:
                 dvars.append(dm["C_d"]*dc["S"]/static.wing["S"])
+            elif "C_f" in dm.varkeys:
+                dvars.append(dm["C_f"]*dc["S"]/static.wing["S"])
 
         constraints = [Wend == Wend,
                        Wstart == Wstart,
