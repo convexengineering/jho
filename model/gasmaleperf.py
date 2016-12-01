@@ -20,9 +20,11 @@ class Aircraft(Model):
         self.wing = Wing()
         self.engine = Engine(DF70)
         self.empennage = Empennage()
+        self.pylon = Pylon()
 
-        components = [self.fuselage, self.wing, self.engine, self.empennage]
-        self.smeared_loads = [self.fuselage, self.engine]
+        components = [self.fuselage, self.wing, self.engine, self.empennage,
+                      self.pylon]
+        self.smeared_loads = [self.fuselage, self.engine, self.pylon]
 
         self.loading = AircraftLoading
 
@@ -32,6 +34,7 @@ class Aircraft(Model):
         Wavn = Variable("W_{avn}", 8, "lbf", "avionics weight")
         lantenna = Variable("l_{antenna}", 13.4, "in", "antenna length")
         wantenna = Variable("w_{antenna}", 10.2, "in", "antenna width")
+        propr = Variable("r", 11, "in", "propellor radius")
 
         constraints = [
             Wzfw >= sum(summing_vars(components, "W")) + Wpay + Wavn,
@@ -53,11 +56,45 @@ class Aircraft(Model):
             self.empennage.tailboom["l"] >= (
                 self.empennage.horizontaltail["l_h"]
                 + self.empennage.horizontaltail["c_{r_h}"]),
-            Ppay == Ppay
+            Ppay == Ppay,
+            propr == propr
             ]
 
         Model.__init__(self, None, [components, constraints],
                        **kwargs)
+
+class Pylon(Model):
+    "attachment from fuselage to pylon"
+    def __init__(self):
+
+        h = Variable("h", 7, "in", "pylon height")
+        l = Variable("l", 32.8, "in", "pylon length")
+        S = Variable("S", "ft**2", "pylon surface area")
+        W = Variable("W", 1.42, "lbf", "pylon weight")
+        rhopylon = Variable("\\rho_{pylon}", 1.42/7.0, "lbf/in",
+                            "pylon weight estimate")
+
+        self.flight_model = PylonAero
+
+        constraints = [W == W,
+                       S >= 2*l*h]
+
+        Model.__init__(self, None, constraints)
+
+class PylonAero(Model):
+    "pylon drag model"
+    def __init__(self, static, state, **kwargs):
+
+        Cf = Variable("C_f", "-", "fuselage skin friction coefficient")
+        Re = Variable("Re", "-", "fuselage reynolds number")
+
+        constraints = [
+            Re == state["V"]*state["\\rho"]*static["l"]/state["\\mu"],
+            Cf >= 0.455/Re**0.3,
+            ]
+
+        Model.__init__(self, None, constraints, **kwargs)
+
 
 class AircraftLoading(Model):
     "aircraft loading model"
@@ -87,13 +124,15 @@ class AircraftPerf(Model):
             static.empennage.verticaltail, state)
         self.tailboom = static.empennage.tailboom.flight_model(
             static.empennage.tailboom, state)
+        self.pylon = static.pylon.flight_model(static.pylon, state)
 
         self.dynamicmodels = [self.wing, self.fuselage, self.engine,
-                              self.htail, self.vtail, self.tailboom]
-        areadragmodel = [self.fuselage, self.htail, self.vtail, self.tailboom]
+                              self.htail, self.vtail, self.tailboom, self.pylon]
+        areadragmodel = [self.fuselage, self.htail, self.vtail, self.tailboom,
+                         self.pylon]
         areadragcomps = [static.fuselage, static.empennage.horizontaltail,
                          static.empennage.verticaltail,
-                         static.empennage.tailboom]
+                         static.empennage.tailboom, static.pylon]
 
         Wend = Variable("W_{end}", "lbf", "vector-end weight")
         Wstart = Variable("W_{start}", "lbf", "vector-begin weight")
@@ -287,7 +326,8 @@ if __name__ == "__main__":
     M = Mission(DF70=True)
     subs = {"b_Mission, Aircraft, Wing": 24,
             "l_Mission, Aircraft, Empennage, TailBoom": 7.0,
-            "AR_v": 1.5, "AR": 24, "SM_{corr}": 0.5, "AR_h": 4}
+            "AR_v": 1.5, "AR": 24, "SM_{corr}": 0.5, "AR_h": 4, "k": 0.0,
+            "(1-k/2)": 1, "d_0": 1}
     M.substitutions.update(subs)
     for p in M.varkeys["P_{avn}"]:
         M.substitutions.update({p: 65})
@@ -295,4 +335,32 @@ if __name__ == "__main__":
     sol = M.solve("mosek")
     print sol.table()
     # Lamv = np.arctan(sol("c_{r_v}")*(1-0.7)/sol("b_v")/0.75)*180/np.pi
+
+    P = sol("F_Mission, AircraftLoading, EmpennageLoading, HorizontalBoomBending")
+    l = sol("l_Mission, Aircraft, Empennage, TailBoom")
+    I = sol("I_0")
+    E = sol("E_Mission, Aircraft, Empennage, TailBoom")
+    x = sol("l_Mission, Aircraft, Pylon")*1.1
+    delta = (P*x**2*(3*l-x)/6/E/I).to("in")
+    h = sol("d")/2 + sol("h_Mission, Aircraft, Pylon") - sol("d_0")
+    D = (h - sol("r") - delta).to("in")
+
+    CDbase = sol("\\vec{C_D_Mission, Loiter, FlightSegment, AircraftPerf}")
+    tbase = sol("t_Mission, Loiter")
+
+    M.substitutions.update({"h_{engine}": 14})
+    sol1 = M.solve("mosek")
+    CDfbig = sol1("\\vec{C_D_Mission, Loiter, FlightSegment, AircraftPerf}")
+    tfbig = sol1("t_Mission, Loiter")
+
+    M.substitutions.update({"h_{engine}":12})
+    M.substitutions.update({"h_Mission, Aircraft, Pylon": 9})
+    sol2 = M.solve("mosek")
+    CDpyt = sol2("\\vec{C_D_Mission, Loiter, FlightSegment, AircraftPerf}")
+    tpyt = sol2("t_Mission, Loiter")
+
+    CDfusein = (CDfbig - CDbase)/CDbase
+    CDpytin = (CDpyt - CDbase)/CDbase
+    tfusediff = (tfbig - tbase).to("hour")
+    tpydiff = (tpyt - tbase).to("hour")
 
