@@ -1,5 +1,6 @@
 """Jungle Hawk Owl"""
 import numpy as np
+from numpy import pi
 from gpkitmodels.aircraft.GP_submodels.breguet_endurance import BreguetEndurance
 from gpkitmodels.aircraft.GP_submodels.gas_engine import Engine
 from gpkitmodels.aircraft.GP_submodels.wing import Wing
@@ -33,6 +34,9 @@ class Aircraft(Model):
         lantenna = Variable("l_{antenna}", 13.4, "in", "antenna length")
         wantenna = Variable("w_{antenna}", 10.2, "in", "antenna width")
         propr = Variable("r", 11, "in", "propellor radius")
+        Volpay = Variable("\\mathcal{V}_{pay}", 1.0, "ft**3", "payload volume")
+        Volavn = Variable("\\mathcal{V}_{avn}", 0.125, "ft**3",
+                          "avionics volume")
 
         constraints = [
             Wzfw >= sum(summing_vars(components, "W")) + Wpay + Wavn,
@@ -55,6 +59,9 @@ class Aircraft(Model):
                 self.empennage.horizontaltail["l_h"]
                 + self.empennage.horizontaltail["c_{r_h}"]),
             self.engine["h"] <= 2*self.fuselage["R"],
+            4./6*pi*self.fuselage["k_{nose}"]*self.fuselage["R"]**3 >= Volpay,
+            self.fuselage["\\mathcal{V}_{body}"] >= (
+                self.fuselage.fueltank["\\mathcal{V}"] + Volavn),
             Ppay == Ppay,
             propr == propr
             ]
@@ -331,7 +338,7 @@ if __name__ == "__main__":
     # JHO.debug(solver="mosek")
     sol = M.solve("mosek")
     print sol.table()
-    # Lamv = np.arctan(sol("c_{r_v}")*(1-0.7)/sol("b_v")/0.75)*180/np.pi
+    # Lamv = np.arctan(sol("c_{r_v}")*(1-0.7)/sol("b_v")/0.75)*180/pi
 
     # P = sol("F_Mission, AircraftLoading, EmpennageLoading, HorizontalBoomBending")
     # l = sol("l_Mission, Aircraft, Empennage, TailBoom")
