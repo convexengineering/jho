@@ -3,6 +3,68 @@ import gpkit
 
 latex_opers = {"<=": " \\leq ", ">=": " \\geq ", "=": " = "}
 
+def cleaned_latex(model):
+    latex = model.latex(excluded=["units"])
+    varnames = frozenset(vk.name for vk in model.varkeys)
+    for name in varnames:
+        vks_orig = [var.key for var in model.variables_byname(name)
+                    if var.key.latex(excluded=["units"]) in latex]
+        for var in model.variables_byname(name):
+            vk = var.key
+            if vk.veckey:
+                if vk.veckey.latex(excluded=["units"]) in latex:
+                    if vk.veckey not in vks_orig:
+                        vks_orig.append(vk.veckey)
+        vkds = [vk.descr.copy() for vk in vks_orig]
+        if not vkds:
+            continue
+        elif len(vkds) == 1:
+            vkd = vkds[0]
+            vkd.pop("models", None)
+        if all("models" in vkd for vkd in vkds):
+            successes = 0
+            for i, modelname in enumerate(list(vkds[0]["models"])):
+                try:
+                    i = i - successes
+                    if all(vkd["models"][i] == modelname
+                           for vkd in vkds):
+                        successes += 1
+                        for vkd in vkds:
+                            vkd["models"] = list(vkd["models"])
+                            vkd["models"].pop(i)
+                except IndexError:
+                    break
+
+            successes = 0
+            for i, modelname in enumerate(reversed(list(vkds[0]["models"]))):
+                try:
+                    i = -1 - i + successes
+                    if all(vkd["models"][i] == modelname
+                           for vkd in vkds):
+                        successes += 1
+                        for vkd in vkds:
+                            vkd["models"] = list(vkd["models"])
+                            vkd["models"].pop(i)
+                except IndexError:
+                    break
+            for vkd in vkds:
+                if (all(vkd_b["models"] in [vkd["models"], []]
+                          for vkd_b in vkds if vkd_b != vkd)
+                      and not any(vkd_b.get("idx", None) == vkd.get("idx", None) for vkd_b in vkds if vkd_b != vkd)):
+                    vkd["models"] = []
+            for vkd in vkds:
+                if not vkd["models"]:
+                    del vkd["models"]
+                    del vkd["modelnums"]
+        vks = [gpkit.VarKey(**vkd) for vkd in vkds]
+        assert len(vks) == len(vks_orig)
+        for vk, vk_orig in zip(vks, vks_orig):
+            latex = latex.replace(vk_orig.latex(excluded=["units"]),
+                                  vk.latex(excluded=["units"]))
+    return latex
+
+
+
 def gen_model_tex(model, modelname, texname=None):
     if texname:
         filename = texname
