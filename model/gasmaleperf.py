@@ -14,8 +14,8 @@ from gpkit import Model, Variable, Vectorize, units
 
 class Aircraft(Model):
     "the JHO vehicle"
-    def __init__(self, Wfueltot, DF70=False, **kwargs):
-        self.flight_model = AircraftPerf
+    def setup(self, Wfueltot, DF70=False):
+
         self.fuselage = Fuselage(Wfueltot)
         self.wing = Wing()
         self.engine = Engine(DF70)
@@ -25,8 +25,6 @@ class Aircraft(Model):
         components = [self.fuselage, self.wing, self.engine, self.empennage,
                       self.pylon]
         self.smeared_loads = [self.fuselage, self.engine, self.pylon]
-
-        self.loading = AircraftLoading
 
         Wzfw = Variable("W_{zfw}", "lbf", "zero fuel weight")
         Wpay = Variable("W_{pay}", 10, "lbf", "payload weight")
@@ -56,16 +54,22 @@ class Aircraft(Model):
             self.empennage.tailboom["l"] >= (
                 self.empennage.horizontaltail["l_h"]
                 + self.empennage.horizontaltail["c_{r_h}"]),
+            self.engine["h"] <= 2*self.fuselage["R"],
             Ppay == Ppay,
             propr == propr
             ]
 
-        Model.__init__(self, None, [components, constraints],
-                       **kwargs)
+        return components, constraints
+
+    def flight_model(self, state):
+        return AircraftPerf(self, state)
+
+    def loading(self, Wcent):
+        return AircraftLoading(self, Wcent)
 
 class Pylon(Model):
     "attachment from fuselage to pylon"
-    def __init__(self):
+    def setup(self):
 
         h = Variable("h", 7, "in", "pylon height")
         l = Variable("l", 32.8, "in", "pylon length")
@@ -74,16 +78,17 @@ class Pylon(Model):
         rhopylon = Variable("\\rho_{pylon}", 1.42/7.0, "lbf/in",
                             "pylon weight estimate")
 
-        self.flight_model = PylonAero
-
         constraints = [W == W,
                        S >= 2*l*h]
 
-        Model.__init__(self, None, constraints)
+        return constraints
+
+    def flight_model(self, state):
+        return PylonAero(self, state)
 
 class PylonAero(Model):
     "pylon drag model"
-    def __init__(self, static, state, **kwargs):
+    def setup(self, static, state):
 
         Cf = Variable("C_f", "-", "fuselage skin friction coefficient")
         Re = Variable("Re", "-", "fuselage reynolds number")
@@ -93,38 +98,34 @@ class PylonAero(Model):
             Cf >= 0.455/Re**0.3,
             ]
 
-        Model.__init__(self, None, constraints, **kwargs)
-
+        return constraints
 
 class AircraftLoading(Model):
     "aircraft loading model"
-    def __init__(self, aircraft, Wcent, **kwargs):
+    def setup(self, aircraft, Wcent):
 
-        loading = [aircraft.wing.loading(aircraft.wing, Wcent)]
-        loading.append(aircraft.empennage.loading(aircraft.empennage))
-        loading.append(aircraft.fuselage.loading(aircraft.fuselage, Wcent))
+        loading = [aircraft.wing.loading(Wcent)]
+        loading.append(aircraft.empennage.loading())
+        loading.append(aircraft.fuselage.loading(Wcent))
 
         tbstate = TailBoomState()
         loading.append(TailBoomFlexibility(aircraft.empennage.horizontaltail,
                                            aircraft.empennage.tailboom,
-                                           aircraft.wing, tbstate, **kwargs))
+                                           aircraft.wing, tbstate))
 
-        Model.__init__(self, None, loading, **kwargs)
+        return loading
 
 class AircraftPerf(Model):
     "performance model for aircraft"
-    def __init__(self, static, state, **kwargs):
+    def setup(self, static, state, **kwargs):
 
-        self.wing = static.wing.flight_model(static.wing, state)
-        self.fuselage = static.fuselage.flight_model(static.fuselage, state)
-        self.engine = static.engine.flight_model(static.engine, state)
-        self.htail = static.empennage.horizontaltail.flight_model(
-            static.empennage.horizontaltail, state)
-        self.vtail = static.empennage.verticaltail.flight_model(
-            static.empennage.verticaltail, state)
-        self.tailboom = static.empennage.tailboom.flight_model(
-            static.empennage.tailboom, state)
-        self.pylon = static.pylon.flight_model(static.pylon, state)
+        self.wing = static.wing.flight_model(state)
+        self.fuselage = static.fuselage.flight_model(state)
+        self.engine = static.engine.flight_model(state)
+        self.htail = static.empennage.horizontaltail.flight_model(state)
+        self.vtail = static.empennage.verticaltail.flight_model(state)
+        self.tailboom = static.empennage.tailboom.flight_model(state)
+        self.pylon = static.pylon.flight_model(state)
 
         self.dynamicmodels = [self.wing, self.fuselage, self.engine,
                               self.htail, self.vtail, self.tailboom, self.pylon]
@@ -152,11 +153,11 @@ class AircraftPerf(Model):
                        CDA/mfac >= sum(dvars),
                        CD >= CDA + self.wing["C_d"]]
 
-        Model.__init__(self, None, [self.dynamicmodels, constraints], **kwargs)
+        return self.dynamicmodels, constraints
 
 class FlightState(Model):
     "define environment state during a portion of an aircraft mission"
-    def __init__(self, alt, wind, **kwargs):
+    def setup(self, alt, wind, **kwargs):
 
         rho = Variable("\\rho", "kg/m^3", "air density")
         h = Variable("h", alt, "ft", "altitude")
@@ -193,19 +194,18 @@ class FlightState(Model):
 
             constraints.extend([(V_wind/V_ref) >= 0.6462*(h/href) + 0.3538,
                                 V >= V_wind])
-        Model.__init__(self, None, constraints, **kwargs)
+        return constraints
 
 class FlightSegment(Model):
     "creates flight segment for aircraft"
-    def __init__(self, N, aircraft, alt=15000, wind=False,
+    def setup(self, N, aircraft, alt=15000, wind=False,
                  etap=0.7, **kwargs):
 
         self.aircraft = aircraft
 
         with Vectorize(N):
             self.fs = FlightState(alt, wind)
-            self.aircraftPerf = self.aircraft.flight_model(self.aircraft,
-                                                           self.fs)
+            self.aircraftPerf = self.aircraft.flight_model(self.fs)
             self.slf = SteadyLevelFlight(self.fs, self.aircraft,
                                          self.aircraftPerf, etap)
             self.be = BreguetEndurance(self.aircraftPerf)
@@ -220,33 +220,32 @@ class FlightSegment(Model):
             self.constraints.extend([self.aircraftPerf["W_{end}"][:-1] >=
                                      self.aircraftPerf["W_{start}"][1:]])
 
-        Model.__init__(self, None, [self.aircraft, self.submodels,
-                                    self.constraints], **kwargs)
+        return self.aircraft, self.submodels, self.constraints
 
 class Loiter(Model):
     "make a loiter flight segment"
-    def __init__(self, N, aircraft, alt=15000, wind=False,
+    def setup(self, N, aircraft, alt=15000, wind=False,
                  etap=0.7, **kwargs):
         fs = FlightSegment(N, aircraft, alt, wind, etap)
 
         t = Variable("t", "days", "time loitering")
         constraints = [fs.be["t"] >= t/N]
 
-        Model.__init__(self, None, [constraints, fs], **kwargs)
+        return constraints, fs
 
 class Cruise(Model):
     "make a cruise flight segment"
-    def __init__(self, N, aircraft, alt=15000, wind=False, etap=0.7, R=200):
+    def setup(self, N, aircraft, alt=15000, wind=False, etap=0.7, R=200):
         fs = FlightSegment(N, aircraft, alt, wind, etap)
 
         R = Variable("R", R, "nautical_miles", "Range to station")
         constraints = [R/N <= fs["V"]*fs.be["t"]]
 
-        Model.__init__(self, None, [fs, constraints])
+        return fs, constraints
 
 class Climb(Model):
     "make a climb flight segment"
-    def __init__(self, N, aircraft, alt=15000, wind=False, etap=0.7, dh=15000):
+    def setup(self, N, aircraft, alt=15000, wind=False, etap=0.7, dh=15000):
         fs = FlightSegment(N, aircraft, alt, wind, etap)
 
         with Vectorize(N):
@@ -264,11 +263,11 @@ class Climb(Model):
                             / fs["V"]),
             ]
 
-        Model.__init__(self, None, [fs, constraints])
+        return fs, constraints
 
 class SteadyLevelFlight(Model):
     "steady level flight model"
-    def __init__(self, state, aircraft, perf, etap, **kwargs):
+    def setup(self, state, aircraft, perf, etap):
 
         T = Variable("T", "N", "thrust")
         etaprop = Variable("\\eta_{prop}", etap, "-", "propulsive efficiency")
@@ -281,11 +280,11 @@ class SteadyLevelFlight(Model):
                   *aircraft.wing["S"]),
             perf["P_{shaft}"] >= T*state["V"]/etaprop]
 
-        Model.__init__(self, None, constraints, **kwargs)
+        return constraints
 
 class Mission(Model):
     "creates flight profile"
-    def __init__(self, DF70=False, wind=False, **kwargs):
+    def setup(self, DF70=False, wind=False):
 
         mtow = Variable("MTOW", "lbf", "max-take off weight")
         Wcent = Variable("W_{cent}", "lbf", "center aircraft weight")
@@ -293,7 +292,7 @@ class Mission(Model):
         LS = Variable("(W/S)", "lbf/ft**2", "wing loading")
 
         JHO = Aircraft(Wfueltot, DF70)
-        loading = JHO.loading(JHO, Wcent)
+        loading = JHO.loading(Wcent)
 
         climb1 = Climb(10, JHO, alt=np.linspace(0, 15000, 11)[1:], etap=0.508, wind=wind)
         cruise1 = Cruise(1, JHO, etap=0.684, R=180, wind=wind)
@@ -317,13 +316,11 @@ class Mission(Model):
                 mission[i]["W_{end}"][-1] == fs["W_{start}"][0]
                 ])
 
-        cost = 1/loiter1["t_Mission, Loiter"]
-
-        Model.__init__(self, cost, [JHO, mission, loading, constraints],
-                       **kwargs)
+        return JHO, mission, loading, constraints
 
 if __name__ == "__main__":
     M = Mission(DF70=True)
+    M.cost = 1/M["t_Mission, Loiter"]
     subs = {"b_Mission, Aircraft, Wing": 24,
             "l_Mission, Aircraft, Empennage, TailBoom": 7.0,
             "AR_v": 1.5, "AR": 24, "SM_{corr}": 0.5, "AR_h": 4, "k": 0.0,
@@ -336,31 +333,31 @@ if __name__ == "__main__":
     print sol.table()
     # Lamv = np.arctan(sol("c_{r_v}")*(1-0.7)/sol("b_v")/0.75)*180/np.pi
 
-    P = sol("F_Mission, AircraftLoading, EmpennageLoading, HorizontalBoomBending")
-    l = sol("l_Mission, Aircraft, Empennage, TailBoom")
-    I = sol("I_0")
-    E = sol("E_Mission, Aircraft, Empennage, TailBoom")
-    x = sol("l_Mission, Aircraft, Pylon")*1.1
-    delta = (P*x**2*(3*l-x)/6/E/I).to("in")
-    h = sol("d")/2 + sol("h_Mission, Aircraft, Pylon") - sol("d_0")
-    D = (h - sol("r") - delta).to("in")
+    # P = sol("F_Mission, AircraftLoading, EmpennageLoading, HorizontalBoomBending")
+    # l = sol("l_Mission, Aircraft, Empennage, TailBoom")
+    # I = sol("I_0")
+    # E = sol("E_Mission, Aircraft, Empennage, TailBoom")
+    # x = sol("l_Mission, Aircraft, Pylon")*1.1
+    # delta = (P*x**2*(3*l-x)/6/E/I).to("in")
+    # h = sol("d")/2 + sol("h_Mission, Aircraft, Pylon") - sol("d_0")
+    # D = (h - sol("r") - delta).to("in")
 
-    CDbase = sol("\\vec{C_D_Mission, Loiter, FlightSegment, AircraftPerf}")
-    tbase = sol("t_Mission, Loiter")
+    # CDbase = sol("\\vec{C_D_Mission, Loiter, FlightSegment, AircraftPerf}")
+    # tbase = sol("t_Mission, Loiter")
 
-    M.substitutions.update({"h_{engine}": 14})
-    sol1 = M.solve("mosek")
-    CDfbig = sol1("\\vec{C_D_Mission, Loiter, FlightSegment, AircraftPerf}")
-    tfbig = sol1("t_Mission, Loiter")
+    # M.substitutions.update({"h_{engine}": 14})
+    # sol1 = M.solve("mosek")
+    # CDfbig = sol1("\\vec{C_D_Mission, Loiter, FlightSegment, AircraftPerf}")
+    # tfbig = sol1("t_Mission, Loiter")
 
-    M.substitutions.update({"h_{engine}":12})
-    M.substitutions.update({"h_Mission, Aircraft, Pylon": 9})
-    sol2 = M.solve("mosek")
-    CDpyt = sol2("\\vec{C_D_Mission, Loiter, FlightSegment, AircraftPerf}")
-    tpyt = sol2("t_Mission, Loiter")
+    # M.substitutions.update({"h_{engine}":12})
+    # M.substitutions.update({"h_Mission, Aircraft, Pylon": 9})
+    # sol2 = M.solve("mosek")
+    # CDpyt = sol2("\\vec{C_D_Mission, Loiter, FlightSegment, AircraftPerf}")
+    # tpyt = sol2("t_Mission, Loiter")
 
-    CDfusein = (CDfbig - CDbase)/CDbase
-    CDpytin = (CDpyt - CDbase)/CDbase
-    tfusediff = (tfbig - tbase).to("hour")
-    tpydiff = (tpyt - tbase).to("hour")
+    # CDfusein = (CDfbig - CDbase)/CDbase
+    # CDpytin = (CDpyt - CDbase)/CDbase
+    # tfusediff = (tfbig - tbase).to("hour")
+    # tpydiff = (tpyt - tbase).to("hour")
 
