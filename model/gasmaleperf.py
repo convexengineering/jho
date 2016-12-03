@@ -62,8 +62,6 @@ class Aircraft(Model):
             4./6*pi*self.fuselage["k_{nose}"]*self.fuselage["R"]**3 >= Volpay,
             self.fuselage["\\mathcal{V}_{body}"] >= (
                 self.fuselage.fueltank["\\mathcal{V}"] + Volavn),
-            Ppay == Ppay,
-            propr == propr
             ]
 
         return components, constraints
@@ -85,8 +83,7 @@ class Pylon(Model):
         rhopylon = Variable("\\rho_{pylon}", 1.42/7.0, "lbf/in",
                             "pylon weight estimate")
 
-        constraints = [W == W,
-                       S >= 2*l*h]
+        constraints = [S >= 2*l*h]
 
         return constraints
 
@@ -155,9 +152,7 @@ class AircraftPerf(Model):
             elif "C_f" in dm.varkeys:
                 dvars.append(dm["C_f"]*dc["S"]/static.wing["S"])
 
-        constraints = [Wend == Wend,
-                       Wstart == Wstart,
-                       CDA/mfac >= sum(dvars),
+        constraints = [CDA/mfac >= sum(dvars),
                        CD >= CDA + self.wing["C_d"]]
 
         return self.dynamicmodels, constraints
@@ -180,12 +175,11 @@ class FlightState(Model):
                         "Dynamic viscosity at sea level")
         Rspec = Variable("R_{spec}", 287.058, "J/kg/K",
                          "Specific gas constant of air")
+        Vmax = Variable("V_{max}", "m/s", "maximum true airspeed")
 
         # Atmospheric variation with altitude (valid from 0-7km of altitude)
         constraints = [rho == psl*Tatm**(5.257-1)/Rspec/(Tsl**5.257),
-                       (mu/musl)**0.1 == 0.991*(h/href)**(-0.00529),
-                       h == h,
-                       href == href]
+                       (mu/musl)**0.1 == 0.991*(h/href)**(-0.00529)]
 
         V = Variable("V", "m/s", "true airspeed")
 
@@ -205,8 +199,7 @@ class FlightState(Model):
 
 class FlightSegment(Model):
     "creates flight segment for aircraft"
-    def setup(self, N, aircraft, alt=15000, wind=False,
-                 etap=0.7, **kwargs):
+    def setup(self, N, aircraft, alt=15000, wind=False, etap=0.7):
 
         self.aircraft = aircraft
 
@@ -216,6 +209,7 @@ class FlightSegment(Model):
             self.slf = SteadyLevelFlight(self.fs, self.aircraft,
                                          self.aircraftPerf, etap)
             self.be = BreguetEndurance(self.aircraftPerf)
+            slfmaxspeed = SLFMaxSpeed(self.fs, self.aircraft, self.aircraftPerf, etap)
 
         self.submodels = [self.fs, self.aircraftPerf, self.slf, self.be]
 
@@ -227,12 +221,11 @@ class FlightSegment(Model):
             self.constraints.extend([self.aircraftPerf["W_{end}"][:-1] >=
                                      self.aircraftPerf["W_{start}"][1:]])
 
-        return self.aircraft, self.submodels, self.constraints
+        return self.aircraft, self.submodels, self.constraints, slfmaxspeed
 
 class Loiter(Model):
     "make a loiter flight segment"
-    def setup(self, N, aircraft, alt=15000, wind=False,
-                 etap=0.7, **kwargs):
+    def setup(self, N, aircraft, alt=15000, wind=False, etap=0.7):
         fs = FlightSegment(N, aircraft, alt, wind, etap)
 
         t = Variable("t", "days", "time loitering")
@@ -271,6 +264,23 @@ class Climb(Model):
             ]
 
         return fs, constraints
+
+class SLFMaxSpeed(Model):
+    "steady level flight model"
+    def setup(self, state, aircraft, perf, etap):
+
+        T = Variable("T", "N", "thrust")
+        etaprop = Variable("\\eta_{prop}", etap, "-", "propulsive efficiency")
+
+        constraints = [
+            (perf["W_{end}"]*perf["W_{start}"])**0.5 <= (
+                0.5*state["\\rho"]*state["V_{max}"]**2*perf["C_L"]
+                * aircraft.wing["S"]),
+            T >= (0.5*state["\\rho"]*state["V_{max}"]**2*perf["C_D"]
+                  *aircraft.wing["S"]),
+            perf["P_{shaft-max}"] >= T*state["V_{max}"]/etaprop]
+
+        return constraints
 
 class SteadyLevelFlight(Model):
     "steady level flight model"
@@ -325,6 +335,9 @@ class Mission(Model):
 
         return JHO, mission, loading, constraints
 
+    def process_solution(self, sol):
+        print sol("MTOW")
+
 if __name__ == "__main__":
     M = Mission(DF70=True)
     M.cost = 1/M["t_Mission, Loiter"]
@@ -337,7 +350,7 @@ if __name__ == "__main__":
         M.substitutions.update({p: 65})
     # JHO.debug(solver="mosek")
     sol = M.solve("mosek")
-    print sol.table()
+    # print sol.table()
     # Lamv = np.arctan(sol("c_{r_v}")*(1-0.7)/sol("b_v")/0.75)*180/pi
 
     # P = sol("F_Mission, AircraftLoading, EmpennageLoading, HorizontalBoomBending")
