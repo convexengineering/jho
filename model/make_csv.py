@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from gasmale import GasMALE
+from gasmaleperf import Mission
 from gpkit.small_scripts import unitstr
 from gpkit import Variable
 from gen_tex import find_submodels
@@ -201,10 +201,12 @@ def model_params(subM, sol):
 
     data = {}
     for v in subM.varkeys:
-        if "Mission" not in v.descr["models"]:
-            data[v] = [sol(v).magnitude]
-            data[v].append(unitstr(M[v].units))
-            data[v].append(v.descr["label"])
+        if "idx" not in v.descr or v.idx == (0,):
+            if "Cruise" not in v.descr["models"]:
+                if "TailAero" not in v.descr["models"]:
+                    data[v] = [sol(v.name + "_" + ", ".join(v.models)).magnitude]
+                    data[v].append(unitstr(M[v].units))
+                    data[v].append(v.descr["label"])
 
     if data:
         df = pd.DataFrame(data)
@@ -215,35 +217,34 @@ def model_params(subM, sol):
     return df
 
 if __name__ == "__main__":
-    M = GasMALE(DF70=True)
-    M.substitutions.update({"t_{loiter}": 6})
-    M.cost = M["MTOW"]
-    Sol = M.solve("mosek")
+    M = Mission(DF70=True)
+    M.cost = 1/M["t_Mission, Loiter"]
+    subs = {"b_Mission, Aircraft, Wing": 24,
+            "l_Mission, Aircraft, Empennage, TailBoom": 7.0,
+            "AR_v": 1.5, "AR": 24, "SM_{corr}": 0.5, "AR_h": 4, "k": 0.0,
+            "(1-k/2)": 1, "d_0": 1}
+    M.substitutions.update(subs)
+    for p in M.varkeys["P_{avn}"]:
+        M.substitutions.update({p: 65})
+    # JHO.debug(solver="mosek")
+    sol = M.solve("mosek")
     PATH = "/Users/mjburton11/Dropbox (MIT)/16.82GasMALE/Management/GpkitReports/"
 
-    Mission_vars = ["RPM", "BSFC", "V", "P_{shaft}",
-                    "P_{shaft-tot}", "h_{dot}", "h", "T_{atm}", "\\mu",
-                    "\\rho", "W_{fuel}", "W_{N}", "W_{N+1}", "C_D", "C_L",
-                    "\\eta_{prop}", "T", "h_{loss}", "P_{shaft-max}", "t",
-                    "C_{f-fuse}", "C_{D-fuse}", "c_{dp}", "V_{wind}"]
-    Margins = ["BSFC", "c_{dp}"]
+    # Mission_vars = ["RPM", "BSFC", "V", "P_{shaft}",
+    #                 "P_{shaft-tot}", "h_{dot}", "h", "T_{atm}", "\\mu",
+    #                 "\\rho", "W_{fuel}", "W_{N}", "W_{N+1}", "C_D", "C_L",
+    #                 "\\eta_{prop}", "T", "h_{loss}", "P_{shaft-max}", "t",
+    #                 "C_{f-fuse}", "C_{D-fuse}", "c_{dp}", "V_{wind}"]
+    # Margins = ["BSFC", "c_{dp}"]
     Sens_boundaries = {"bad": 0.8, "good": 0.2}
-    DF = mission_vars(M, Sol, Mission_vars, Margins)
-    DF.to_csv("test.csv")
-    write_to_excel(PATH, "Mission_params.xlsx", DF, Sens_boundaries)
-    DF = bd_vars(M, Sol, "W", ["MTOW", "W_{fuel-tot}", "W_{zfw}"])
+    # DF = mission_vars(M, Sol, Mission_vars, Margins)
+    # DF.to_csv("test.csv")
+    # write_to_excel(PATH, "Mission_params.xlsx", DF, Sens_boundaries)
+    DF = bd_vars(M, sol, "W", ["MTOW", "W_{fuel-tot}", "W_{zfw}"])
     write_to_excel(PATH, "W_breakdown.xlsx", DF, Sens_boundaries)
 
-    m, mn = find_submodels([M], [])
-    mn = [""] + mn
+    m, mn = find_submodels([M], ["Mission"])
     for subm, name in zip(m, mn):
-        df = model_params(subm, Sol)
+        df = model_params(subm, sol)
         if df is not None:
             df.to_csv(PATH + "%s.csv" % name)
-
-    # df = sketch_params(
-    #     M, Sol, ["S", "b", "l_{fuel}", "d", "L", "S_h", "S_v", "b_h", "b_v", "d_0"],
-    #     othervars={"lambda":[0.5, "-", "taper ratio"],
-    #                "eta":[3, "-", "tail boom separation/fuselage diameter"]}
-    #     )
-    # df.to_csv("sketch_params.csv")

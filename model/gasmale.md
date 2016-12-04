@@ -163,10 +163,10 @@ This paper presents the designs achieved in the 82 project. This also presents a
 from gasmaleperf import Mission
 from gen_tex import gen_model_tex, find_submodels, gen_tex_fig, gen_fixvars_tex 
 
-M = Mission()
-models, modelnames = find_submodels([M], [M.__class__.__name__])
-for m in models: 
-    gen_model_tex(m, m.__class__.__name__)
+# M = Mission()
+# models, modelnames = find_submodels([M], [M.__class__.__name__])
+# for m in models: 
+#     gen_model_tex(m, m.__class__.__name__)
 
 ```
 
@@ -177,6 +177,7 @@ This model was created and then a sweep was done to determine the MTOW required 
 ```python
 #inPDF: skip
 from plotting import plot_sweep, fix_vars, plot_altitude_sweeps
+import matplotlib.pyplot as plt
 import numpy as np
 
 # M.substitutions.update({"MTOW": 150})
@@ -194,6 +195,7 @@ After deciding on the 150 lb aircraft to meet with a 1 day margin on the loiter 
 ```python
 #inPDF: replace with tex/sol.generated.tex
 M = Mission(DF70=True)
+M.cost = 1/M["t_Mission, Loiter"]
 sol = M.solve("mosek")
 
 ```
@@ -204,7 +206,7 @@ By fixing the following variables to their respective values we were also able t
 #inPDF: replace with tex/fixvars.table.generated.tex
 
 vars_to_fix = {"b_Mission, Aircraft, Wing": 24, "l_Mission, Aircraft, Empennage, TailBoom": 7.0,
-               "AR_v": 1.5, "AR": 24, "SM_{corr}": 0.5, "AR_h": 4}
+               "AR_v": 1.5, "AR": 24, "SM_{corr}": 0.5, "AR_h": 4, "R_Mission, Aircraft, Fuselage": 0.55, "k_{nose}": 3.013, "k_{body}": 4.523, "k_{bulk}": 4.39}
 M.substitutions.update(vars_to_fix)
 for p in M.varkeys["P_{avn}"]:
     M.substitutions.update({p: 65})
@@ -220,19 +222,42 @@ with open("tex/sol.generated.tex", "w") as f:
 #inPDF: skip
 # set objective to time on station after fixing variables
 # payload power vs time on station
-# fig, ax = plot_sweep(M, "P_{pay}", np.linspace(10, 200, 15), ["t_Mission, Loiter"], ylim=[0,10])
-# gen_tex_fig(fig, "t_vs_Ppay")
+fig, ax = plot_sweep(M, "P_{pay}", np.linspace(10, 200, 15), ["t_Mission, Loiter"], ylim=[0,10])
+gen_tex_fig(fig, "t_vs_Ppay")
+
+# payload weight vs time on station
+for p in M.varkeys["P_{pay}"]:
+    M.substitutions.update({p: 100})
+fig, ax = plot_sweep(M, "W_{pay}", np.linspace(5, 20, 15), ["t_Mission, Loiter"], ylim=[0,10])
+gen_tex_fig(fig, "t_vs_Wpay")
 # 
-# # payload weight vs time on station
-# fig, ax = plot_sweep(M, "W_{pay}", np.linspace(5, 20, 15), ["t_Mission, Loiter"], ylim=[0,10])
-# gen_tex_fig(fig, "t_vs_Wpay")
-# 
-# # wind speed vs time on station
-# M = Mission(wind=True, DF70=True)
-# fix_vars(M, sol, vars_to_fix)
-# M.substitutions.update({"P_{pay}": 100})
-# fig, ax = plot_sweep(M, "V_{wind}_Mision, Loiter, FlightSegment, FlightState", np.linspace(5, 40, 15), ["t_Mission, Loiter"], ylim=[0,10])
-# gen_tex_fig(fig, "t_vs_Vwind")
+# wind speed vs time on station
+M = Mission(wind=True, DF70=True)
+M.cost = 1/M["t_Mission, Loiter"]
+vars_to_fix = {"b_Mission, Aircraft, Wing": 24, "l_Mission, Aircraft, Empennage, TailBoom": 7.0,
+               "AR_v": 1.5, "AR": 24, "SM_{corr}": 0.5, "AR_h": 4, "R_Mission, Aircraft, Fuselage": 0.55, "k_{nose}": 3.013, "k_{body}": 4.523, "k_{bulk}": 4.39}
+M.substitutions.update(vars_to_fix)
+for p in M.varkeys["P_{avn}"]:
+    M.substitutions.update({p: 65})
+for p in M.varkeys["P_{pay}"]:
+    M.substitutions.update({p: 100})
+wind = np.linspace(5, 40, 15)
+s = []
+for w in wind:
+    for vw in M.varkeys["V_{wind}"]:
+        M.substitutions.update({vw: w})
+    try:
+        sol = M.solve("mosek")
+        s.append(sol("t_Mission, Loiter").magnitude)
+    except RuntimeWarning:
+        s.append(np.nan)
+fig, ax = plt.subplots()
+ax.plot(wind, s)
+ax.grid()
+ax.set_xlabel("wind speed [m/s]")
+ax.set_ylabel("loiter time [days]")
+ax.set_ylim([0, 10])
+gen_tex_fig(fig, "t_vs_Vwind")
 # 
 # # altitude vs time on loiter
 # # altitude_vars = {"t_Mission, Loiter"}

@@ -33,7 +33,7 @@ class Aircraft(Model):
         Wavn = Variable("W_{avn}", 8, "lbf", "avionics weight")
         lantenna = Variable("l_{antenna}", 13.4, "in", "antenna length")
         wantenna = Variable("w_{antenna}", 10.2, "in", "antenna width")
-        propr = Variable("r", 11, "in", "propellor radius")
+        # propr = Variable("r", 11, "in", "propellor radius")
         Volpay = Variable("\\mathcal{V}_{pay}", 1.0, "ft**3", "payload volume")
         Volavn = Variable("\\mathcal{V}_{avn}", 0.125, "ft**3",
                           "avionics volume")
@@ -58,11 +58,13 @@ class Aircraft(Model):
             self.empennage.tailboom["l"] >= (
                 self.empennage.horizontaltail["l_h"]
                 + self.empennage.horizontaltail["c_{r_h}"]),
-            self.engine["h"] <= 2*self.fuselage["R"],
             4./6*pi*self.fuselage["k_{nose}"]*self.fuselage["R"]**3 >= Volpay,
             self.fuselage["\\mathcal{V}_{body}"] >= (
                 self.fuselage.fueltank["\\mathcal{V}"] + Volavn),
             ]
+
+        if DF70:
+            constraints.extend([self.engine["h"] <= 2*self.fuselage["R"]])
 
         return components, constraints
 
@@ -80,8 +82,6 @@ class Pylon(Model):
         l = Variable("l", 32.8, "in", "pylon length")
         S = Variable("S", "ft**2", "pylon surface area")
         W = Variable("W", 1.42, "lbf", "pylon weight")
-        rhopylon = Variable("\\rho_{pylon}", 1.42/7.0, "lbf/in",
-                            "pylon weight estimate")
 
         constraints = [S >= 2*l*h]
 
@@ -175,11 +175,11 @@ class FlightState(Model):
                         "Dynamic viscosity at sea level")
         Rspec = Variable("R_{spec}", 287.058, "J/kg/K",
                          "Specific gas constant of air")
-        Vmax = Variable("V_{max}", "m/s", "maximum true airspeed")
 
         # Atmospheric variation with altitude (valid from 0-7km of altitude)
         constraints = [rho == psl*Tatm**(5.257-1)/Rspec/(Tsl**5.257),
-                       (mu/musl)**0.1 == 0.991*(h/href)**(-0.00529)]
+                       (mu/musl)**0.1 == 0.991*(h/href)**(-0.00529),
+                       Latm == Latm]
 
         V = Variable("V", "m/s", "true airspeed")
 
@@ -209,7 +209,6 @@ class FlightSegment(Model):
             self.slf = SteadyLevelFlight(self.fs, self.aircraft,
                                          self.aircraftPerf, etap)
             self.be = BreguetEndurance(self.aircraftPerf)
-            slfmaxspeed = SLFMaxSpeed(self.fs, self.aircraft, self.aircraftPerf, etap)
 
         self.submodels = [self.fs, self.aircraftPerf, self.slf, self.be]
 
@@ -221,7 +220,7 @@ class FlightSegment(Model):
             self.constraints.extend([self.aircraftPerf["W_{end}"][:-1] >=
                                      self.aircraftPerf["W_{start}"][1:]])
 
-        return self.aircraft, self.submodels, self.constraints, slfmaxspeed
+        return self.aircraft, self.submodels, self.constraints
 
 class Loiter(Model):
     "make a loiter flight segment"
