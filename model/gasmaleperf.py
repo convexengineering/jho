@@ -347,36 +347,5 @@ if __name__ == "__main__":
     M.substitutions.update(subs)
     for p in M.varkeys["P_{avn}"]:
         M.substitutions.update({p: 65})
-    # JHO.debug(solver="mosek")
+
     sol = M.solve("mosek")
-    # print sol.table()
-    # Lamv = np.arctan(sol("c_{r_v}")*(1-0.7)/sol("b_v")/0.75)*180/pi
-
-    # P = sol("F_Mission, AircraftLoading, EmpennageLoading, HorizontalBoomBending")
-    # l = sol("l_Mission, Aircraft, Empennage, TailBoom")
-    # I = sol("I_0")
-    # E = sol("E_Mission, Aircraft, Empennage, TailBoom")
-    # x = sol("l_Mission, Aircraft, Pylon")*1.1
-    # delta = (P*x**2*(3*l-x)/6/E/I).to("in")
-    # h = sol("d")/2 + sol("h_Mission, Aircraft, Pylon") - sol("d_0")
-    # D = (h - sol("r") - delta).to("in")
-
-    # CDbase = sol("\\vec{C_D_Mission, Loiter, FlightSegment, AircraftPerf}")
-    # tbase = sol("t_Mission, Loiter")
-
-    # M.substitutions.update({"h_{engine}": 14})
-    # sol1 = M.solve("mosek")
-    # CDfbig = sol1("\\vec{C_D_Mission, Loiter, FlightSegment, AircraftPerf}")
-    # tfbig = sol1("t_Mission, Loiter")
-
-    # M.substitutions.update({"h_{engine}":12})
-    # M.substitutions.update({"h_Mission, Aircraft, Pylon": 9})
-    # sol2 = M.solve("mosek")
-    # CDpyt = sol2("\\vec{C_D_Mission, Loiter, FlightSegment, AircraftPerf}")
-    # tpyt = sol2("t_Mission, Loiter")
-
-    # CDfusein = (CDfbig - CDbase)/CDbase
-    # CDpytin = (CDpyt - CDbase)/CDbase
-    # tfusediff = (tfbig - tbase).to("hour")
-    # tpydiff = (tpyt - tbase).to("hour")
-
