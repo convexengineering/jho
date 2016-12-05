@@ -223,13 +223,17 @@ with open("tex/sol.generated.tex", "w") as f:
 # set objective to time on station after fixing variables
 # payload power vs time on station
 fig, ax = plot_sweep(M, "P_{pay}", np.linspace(10, 200, 15), ["t_Mission, Loiter"], ylim=[0,10])
-gen_tex_fig(fig, "t_vs_Ppay")
+ax[0].plot([10, 10], [0, 6.1], "g--", linewidth=2.0)
+ax[0].plot([0, 10], [6.1, 6.1], "g--", linewidth=2.0)
+ax[0].plot([100, 100], [0, 5.5], "r--", linewidth=2.0)
+ax[0].plot([0, 100], [5.5, 5.5], "r--", linewidth=2.0)
+fig.savefig("t_vs_Ppay.png")
 
 # payload weight vs time on station
-for p in M.varkeys["P_{pay}"]:
-    M.substitutions.update({p: 100})
-fig, ax = plot_sweep(M, "W_{pay}", np.linspace(5, 20, 15), ["t_Mission, Loiter"], ylim=[0,10])
-gen_tex_fig(fig, "t_vs_Wpay")
+# for p in M.varkeys["P_{pay}"]:
+#     M.substitutions.update({p: 100})
+# fig, ax = plot_sweep(M, "W_{pay}", np.linspace(5, 20, 15), ["t_Mission, Loiter"], ylim=[0,10])
+# gen_tex_fig(fig, "t_vs_Wpay")
 # 
 # wind speed vs time on station
 M = Mission(wind=True, DF70=True)
@@ -253,11 +257,16 @@ for w in wind:
         s.append(np.nan)
 fig, ax = plt.subplots()
 ax.plot(wind, s)
+ax.plot([25, 25], [0, 5.5], "g--", linewidth=2.0)
+ax.plot([5, 25], [5.5, 5.5], "g--", linewidth=2.0)
 ax.grid()
 ax.set_xlabel("wind speed [m/s]")
-ax.set_ylabel("loiter time [days]")
+ax.set_ylabel("time loitering [days]")
 ax.set_ylim([0, 10])
-gen_tex_fig(fig, "t_vs_Vwind")
+fig.savefig("t_vs_Vwind.png")
+ax.plot([32, 32], [0, 4.1], "m--", linewidth=2.0)
+ax.plot([5, 32], [4.1, 4.1], "m--", linewidth=2.0)
+fig.savefig("t_vs_Vwinddec.png")
 # 
 # # altitude vs time on loiter
 # # altitude_vars = {"t_Mission, Loiter"}
