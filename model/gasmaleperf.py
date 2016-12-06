@@ -347,5 +347,6 @@ if __name__ == "__main__":
     M.substitutions.update(subs)
     for p in M.varkeys["P_{avn}"]:
         M.substitutions.update({p: 65})
-
+    for t in M.varkeys["\\theta_{max}"]:
+        M.substitutions.update({t: 65})
     sol = M.solve("mosek")
