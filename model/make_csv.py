@@ -6,57 +6,38 @@ from gpkit import Variable
 from gen_tex import find_submodels
 import xlsxwriter
 
-def mission_vars(M, sol, varnames, margins):
+def mission_vars(M, sol):
     """
     This ouputs variables relevant accross a mission
     """
-    sens = sol["sensitivities"]["constants"]
-
+    mission = ["Climb", "Cruise", "Loiter"]
+    mns = [10, 1, 5, 1]
     data = {}
-    n = []
-    colnames = ["Units"]
-    for subm in M.submodels:
-        if subm.__class__.__name__ == "Mission":
-            mission = subm
-            for fs in mission.submodels:
-                n.append(fs.N)
-                for i in range(fs.N):
-                    colnames.append(fs.__class__.__name__ +
-                                    "%s.%s" % (fs.num, i))
-    colnames.append("Label")
 
-    for varname in varnames:
-        data[varname] = [""]
-        for flightseg in mission.submodels:
-            if varname in flightseg.varkeys:
-                if flightseg[varname] in sens:
-                    data[varname + " sens"] = [""]
-        for i, fs in enumerate(mission.submodels):
-            if varname not in fs.varkeys:
-                data[varname].append([""]*n[i])
-                if varname+" sens" in data:
-                    data[varname+" sens"].append([""]*n[i])
-                continue
-            nonvector = isinstance(fs[varname], Variable)
-            units = (unitstr(fs[varname][0].descr["units"]) if not nonvector
-                     else unitstr(fs[varname].descr["units"]))
-            data[varname].append(sol(fs[varname]).magnitude if not nonvector
-                                 else [sol(fs[varname]).magnitude]*n[i])
-            if fs[varname] in sens:
-                if not nonvector:
-                    data[varname+" sens"].append(sens[fs[varname]])
-                else:
-                    data[varname+" sens"].append(list(sens[fs[varname]])*n[i])
-            if i == len(mission.submodels)-1:
-                data[varname].append(fs[varname][0].descr["label"] if not
-                                     nonvector else fs[varname].descr["label"])
-        data[varname][0] = units
-        data[varname] = np.hstack(data[varname])
+    vks = []
+    for m in M.varkeys:
+        for fs in mission:
+            if fs in m.models and "shape" in m.descr:
+                data[m.name + "_" + ", ".join([mname for mname in m.models if mname != fs])] = [unitstr(m.descr["units"])] + [""]*17 \
+                               + [m.descr["label"]]
+                vks.append(m)
 
-    for d in data:
-        if "sens" in d or len(data[d]) < sum(n)+2:
-            data[d] = np.hstack(data[d])
-            data[d] = np.append(data[d], [""])
+    for vk in vks:
+        fs = [m for m in vk.models if m in mission][0]
+        mn = vk.modelnums[vk.models.index(fs)]
+        if mn == 1:
+            ind = -2
+        else:
+            if fs == "Climb":
+                ind = 1 + vk.idx[0]
+            elif fs == "Cruise":
+                ind = 11
+            elif fs == "Loiter":
+                ind = 12 + vk.idx[0]
+        data[vk.name + "_" + ", ".join([mname for mname in vk.models if mname != fs])][ind] = sol(vk).magnitude
+
+
+    colnames = ["Units"] + ["Climb%d" % i for i in range(10)] + ["Cruise"] + ["Loiter%d" % i for i in range(5)] + ["Cruise"] + ["Label"]
 
     df = pd.DataFrame(data)
     df = df.transpose()
@@ -226,6 +207,8 @@ if __name__ == "__main__":
     M.substitutions.update(subs)
     for p in M.varkeys["P_{avn}"]:
         M.substitutions.update({p: 65})
+    for t in M.varkeys["\\theta_{max}"]:
+        M.substitutions.update({t: 0.2})
     # JHO.debug(solver="mosek")
     sol = M.solve("mosek")
     PATH = "/Users/mjburton11/Dropbox (MIT)/16.82GasMALE/Management/GpkitReports/"
@@ -237,8 +220,8 @@ if __name__ == "__main__":
     #                 "C_{f-fuse}", "C_{D-fuse}", "c_{dp}", "V_{wind}"]
     # Margins = ["BSFC", "c_{dp}"]
     Sens_boundaries = {"bad": 0.8, "good": 0.2}
-    # DF = mission_vars(M, Sol, Mission_vars, Margins)
-    # DF.to_csv("test.csv")
+    DF = mission_vars(M, sol)
+    DF.to_csv(PATH + "mission_params.csv")
     # write_to_excel(PATH, "Mission_params.xlsx", DF, Sens_boundaries)
     DF = bd_vars(M, sol, "W", ["MTOW", "W_{fuel-tot}", "W_{zfw}"])
     write_to_excel(PATH, "W_breakdown.xlsx", DF, Sens_boundaries)
