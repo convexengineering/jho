@@ -1,4 +1,3 @@
-"""Jungle Hawk Owl"""
 import numpy as np
 from numpy import pi
 from gpkitmodels.aircraft.GP_submodels.breguet_endurance import BreguetEndurance
@@ -143,7 +142,7 @@ class AircraftPerf(Model):
         Wstart = Variable("W_{start}", "lbf", "vector-begin weight")
         CD = Variable("C_D", "-", "drag coefficient")
         CDA = Variable("CDA", "-", "area drag coefficient")
-        mfac = Variable("m_{fac}", 1.7, "-", "drag margin factor")
+        mfac = Variable("m_{fac}", 2.1, "-", "drag margin factor")
 
         dvars = []
         for dc, dm in zip(areadragcomps, areadragmodel):
@@ -350,3 +349,5 @@ if __name__ == "__main__":
     for t in M.varkeys["\\theta_{max}"]:
         M.substitutions.update({t: 65})
     sol = M.solve("mosek")
+
+    LD = sol("C_L_Mission, Loiter, FlightSegment, AircraftPerf, WingAero")/sol("C_D_Mission, Loiter, FlightSegment, AircraftPerf")
