@@ -336,6 +336,10 @@ class Mission(Model):
     def process_solution(self, sol):
         print sol("MTOW")
 
+    def test(self):
+        self.cost = 1/self["t_Mission, Loiter"]
+        self.solve("mosek")
+
 if __name__ == "__main__":
     M = Mission(DF70=True)
     M.cost = 1/M["t_Mission, Loiter"]
