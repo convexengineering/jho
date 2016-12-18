@@ -336,9 +336,19 @@ class Mission(Model):
     def process_solution(self, sol):
         print sol("MTOW")
 
-    def test(self):
-        self.cost = 1/self["t_Mission, Loiter"]
-        self.solve("mosek")
+def test():
+    M = Mission(DF70=True)
+    M.cost = 1/M["t_Mission, Loiter"]
+    subs = {"b_Mission, Aircraft, Wing": 24,
+            "l_Mission, Aircraft, Empennage, TailBoom": 7.0,
+            "AR_v": 1.5, "AR": 24, "SM_{corr}": 0.5, "AR_h": 4, "k": 0.0,
+            "(1-k/2)": 1, "d_0": 1}
+    M.substitutions.update(subs)
+    for p in M.varkeys["P_{avn}"]:
+        M.substitutions.update({p: 65})
+    for t in M.varkeys["\\theta_{max}"]:
+        M.substitutions.update({t: 65})
+    M.solve("mosek")
 
 if __name__ == "__main__":
     M = Mission(DF70=True)
