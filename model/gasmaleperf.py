@@ -3,7 +3,7 @@ from numpy import pi
 from gpkitmodels.aircraft.GP_submodels.breguet_endurance import BreguetEndurance
 from gpkitmodels.aircraft.GP_submodels.gas_engine import Engine
 from gpkitmodels.aircraft.GP_submodels.wing import Wing
-from gpkitmodels.aircraft.GP_submodels.fuselage import Fuselage
+from gpkitmodels.aircraft.GP_submodels.cylindrical_fuselage import Fuselage
 from gpkitmodels.aircraft.GP_submodels.empennage import Empennage
 from gpkitmodels.aircraft.GP_submodels.tail_boom import TailBoomState
 from gpkitmodels.aircraft.GP_submodels.tail_boom_flex import TailBoomFlexibility
