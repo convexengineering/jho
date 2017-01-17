@@ -1,12 +1,12 @@
-import pandas as pd 
-import numpy as np 
+import pandas as pd
+import numpy as np
 from numpy import logspace, log, log10
 import matplotlib.pyplot as plt
 # you have to change it to this and run the file form gpfit
 from fit import fit
 
 # since this is not an installable code source you have to navigate to the
-# ~gpfit folder.  
+# ~gpfit folder.
 df = pd.read_csv('DF35_maxPvh.csv')
 
 h = df['ft']

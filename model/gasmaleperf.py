@@ -362,6 +362,6 @@ if __name__ == "__main__":
         M.substitutions.update({p: 65})
     for t in M.varkeys["\\theta_{max}"]:
         M.substitutions.update({t: 65})
-    sol = M.solve("mosek")
+    sol = M.localsolve("mosek")
 
     LD = sol("C_L_Mission, Loiter, FlightSegment, AircraftPerf, WingAero")/sol("C_D_Mission, Loiter, FlightSegment, AircraftPerf")
