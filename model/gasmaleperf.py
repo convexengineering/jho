@@ -1,30 +1,38 @@
 import numpy as np
 from numpy import pi
-from gpkitmodels.aircraft.GP_submodels.breguet_endurance import BreguetEndurance
-from gpkitmodels.aircraft.GP_submodels.gas_engine import Engine
-from gpkitmodels.aircraft.GP_submodels.wing import Wing
-from gpkitmodels.aircraft.GP_submodels.cylindrical_fuselage import Fuselage
-from gpkitmodels.aircraft.GP_submodels.empennage import Empennage
-from gpkitmodels.aircraft.GP_submodels.tail_boom import TailBoomState
-from gpkitmodels.aircraft.GP_submodels.tail_boom_flex import TailBoomFlexibility
+from gpkitmodels.GP.aircraft.mission.breguet_endurance import BreguetEndurance
+from gpkitmodels.GP.aircraft.engine.df70 import DF70
+from gpkitmodels.GP.aircraft.engine.gas_engine import Engine
+from gpkitmodels.GP.aircraft.wing.wing import Wing
+from gpkitmodels.GP.aircraft.fuselage.cylindrical_fuselage import Fuselage
+from gpkitmodels.GP.aircraft.tail.empennage import Empennage
+from gpkitmodels.GP.aircraft.tail.tail_boom import TailBoomState
+from gpkitmodels.SP.aircraft.tail.tail_boom_flex import TailBoomFlexibility
 from helpers import summing_vars
 from gpkit import Model, Variable, Vectorize, units
+from gpkit.tools.autosweep import autosweep_1d
+import matplotlib.pyplot as plt
 
 # pylint: disable=invalid-name
 
 class Aircraft(Model):
     "the JHO vehicle"
-    def setup(self, Wfueltot, DF70=False):
+    def setup(self, Wfueltot, df70=True):
 
         self.fuselage = Fuselage(Wfueltot)
-        self.wing = Wing()
-        self.engine = Engine(DF70)
+        self.wing = Wing(N=14)
+        if df70:
+            self.engine = DF70()
+        else:
+            self.engine = Engine()
         self.empennage = Empennage()
         self.pylon = Pylon()
 
         components = [self.fuselage, self.wing, self.engine, self.empennage,
                       self.pylon]
         self.smeared_loads = [self.fuselage, self.engine, self.pylon]
+        # components = [self.fuselage, self.wing, self.engine, self.empennage]
+        # self.smeared_loads = [self.fuselage, self.engine]
 
         Wzfw = Variable("W_{zfw}", "lbf", "zero fuel weight")
         Wpay = Variable("W_{pay}", 10, "lbf", "payload weight")
@@ -62,7 +70,7 @@ class Aircraft(Model):
                 self.fuselage.fueltank["\\mathcal{V}"] + Volavn),
             ]
 
-        if DF70:
+        if df70:
             constraints.extend([self.engine["h"] <= 2*self.fuselage["R"]])
 
         return components, constraints
@@ -137,6 +145,12 @@ class AircraftPerf(Model):
         areadragcomps = [static.fuselage, static.empennage.horizontaltail,
                          static.empennage.verticaltail,
                          static.empennage.tailboom, static.pylon]
+        # self.dynamicmodels = [self.wing, self.fuselage, self.engine,
+        #                       self.htail, self.vtail, self.tailboom]
+        # areadragmodel = [self.fuselage, self.htail, self.vtail, self.tailboom]
+        # areadragcomps = [static.fuselage, static.empennage.horizontaltail,
+        #                  static.empennage.verticaltail,
+        #                  static.empennage.tailboom]
 
         Wend = Variable("W_{end}", "lbf", "vector-end weight")
         Wstart = Variable("W_{start}", "lbf", "vector-begin weight")
@@ -299,14 +313,14 @@ class SteadyLevelFlight(Model):
 
 class Mission(Model):
     "creates flight profile"
-    def setup(self, DF70=False, wind=False):
+    def setup(self, wind=False, DF70=True):
 
         mtow = Variable("MTOW", "lbf", "max-take off weight")
         Wcent = Variable("W_{cent}", "lbf", "center aircraft weight")
         Wfueltot = Variable("W_{fuel-tot}", "lbf", "total aircraft fuel weight")
         LS = Variable("(W/S)", "lbf/ft**2", "wing loading")
 
-        JHO = Aircraft(Wfueltot, DF70)
+        JHO = Aircraft(Wfueltot, df70=DF70)
         loading = JHO.loading(Wcent)
 
         climb1 = Climb(10, JHO, alt=np.linspace(0, 15000, 11)[1:], etap=0.508, wind=wind)
@@ -333,11 +347,11 @@ class Mission(Model):
 
         return JHO, mission, loading, constraints
 
-    def process_solution(self, sol):
+    def process_result(self, sol):
         print sol("MTOW")
 
 def test():
-    M = Mission(DF70=True)
+    M = Mission()
     M.cost = 1/M["t_Mission, Loiter"]
     subs = {"b_Mission, Aircraft, Wing": 24,
             "l_Mission, Aircraft, Empennage, TailBoom": 7.0,
@@ -351,17 +365,37 @@ def test():
     M.localsolve()
 
 if __name__ == "__main__":
-    M = Mission(DF70=True)
+    M = Mission()
     M.cost = 1/M["t_Mission, Loiter"]
     subs = {"b_Mission, Aircraft, Wing": 24,
             "l_Mission, Aircraft, Empennage, TailBoom": 7.0,
-            "AR_v": 1.5, "AR": 24, "SM_{corr}": 0.5, "AR_h": 4, "k": 0.0,
-            "(1-k/2)": 1, "d_0": 1}
+            "AR_v": 1.5, "c_{root}": 15./12, "SM_{corr}": 0.5, "AR_h": 4, "k": 0.0,
+            "(1-k/2)": 1, "d_0": 1, "R_Mission, Aircraft, Fuselage": 7./12,
+            "\\tau_Mission, Aircraft, Wing": 0.113661}
     M.substitutions.update(subs)
     for p in M.varkeys["P_{avn}"]:
         M.substitutions.update({p: 65})
     for t in M.varkeys["\\theta_{max}"]:
         M.substitutions.update({t: 65})
+    M.substitutions.update({"w_{lim}": 1})
+    for vk in M.varkeys["w"]:
+        M.substitutions.update({vk: 2})
     sol = M.localsolve("mosek")
 
     LD = sol("C_L_Mission, Loiter, FlightSegment, AircraftPerf, WingAero")/sol("C_D_Mission, Loiter, FlightSegment, AircraftPerf")
+
+    # M = Mission(DF70=False)
+    # M.cost = 1/M["t_Mission, Loiter"]
+    # lower = 50
+    # upper = 1000
+    # xmin_ = np.linspace(lower, upper, 100)
+    # bst = autosweep_1d(M, 1e-2, M["MTOW"], [lower, upper], solver="mosek")
+
+    # fig, ax = plt.subplots()
+    # ax.plot(xmin_, 1/bst.sample_at(xmin_)["cost"])
+    # ax.set_xlabel("Max Take Off Weight [lbf]")
+    # ax.set_ylabel("Endurance [days]")
+    # ax.grid()
+    # fig.savefig("mtowtend.pdf")
+
+
