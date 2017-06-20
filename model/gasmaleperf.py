@@ -3,7 +3,7 @@ from numpy import pi
 from gpkitmodels.GP.aircraft.mission.breguet_endurance import BreguetEndurance
 from gpkitmodels.GP.aircraft.engine.df70 import DF70
 from gpkitmodels.GP.aircraft.engine.gas_engine import Engine
-from gpkitmodels.GP.aircraft.wing.wing import Wing
+from gpkitmodels.SP.aircraft.wing.wing import Wing
 from gpkitmodels.GP.aircraft.fuselage.cylindrical_fuselage import Fuselage
 from gpkitmodels.GP.aircraft.tail.empennage import Empennage
 from gpkitmodels.GP.aircraft.tail.tail_boom import TailBoomState
@@ -116,7 +116,6 @@ class AircraftLoading(Model):
     def setup(self, aircraft, Wcent):
 
         loading = [aircraft.wing.loading(Wcent)]
-        loading.append(aircraft.empennage.loading())
         loading.append(aircraft.fuselage.loading(Wcent))
 
         tbstate = TailBoomState()
