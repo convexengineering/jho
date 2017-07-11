@@ -355,9 +355,8 @@ def test():
     _ = solve_jho()
 
 
-def solve_jho():
+def solve_jho(M):
     """get solution for as-built Jungle Hawk Owl"""
-    M = Mission()
     M.cost = 1/M["t_Mission/Loiter"]
     subs = {"b_Mission/Aircraft/Wing": 24,
             "l_Mission/Aircraft/Empennage/TailBoom": 7.0,
@@ -374,8 +373,19 @@ def solve_jho():
         M.substitutions.update({vk: 2})
     return M.localsolve("mosek")
 
+def max_speed(M):
+    oldcost = M.cost
+    M.cost = 1./np.prod(M["V_Mission/Loiter/FlightSegment/FlightState"])
+    M.substitutions.update({"t_Mission/Loiter": 0.02})
+    sol = M.localsolve("mosek")
+    vmax = max(sol("V_Mission/Loiter/FlightSegment/FlightState"))
+    print "Max Speed [m/s]: %.2f" % vmax.magnitude
+    return vmax
+
 if __name__ == "__main__":
-    sol = solve_jho()
+    M = Mission()
+    sol = solve_jho(M)
+    vmax = max_speed(M)
     LD = sol("C_L_Mission/Loiter/FlightSegment/AircraftPerf/WingAero")/sol("C_D_Mission/Loiter/FlightSegment/AircraftPerf")
 
     # M = Mission(DF70=False)
