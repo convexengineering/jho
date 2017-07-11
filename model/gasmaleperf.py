@@ -380,12 +380,21 @@ def max_speed(M):
     sol = M.localsolve("mosek")
     vmax = max(sol("V_Mission/Loiter/FlightSegment/FlightState"))
     print "Max Speed [m/s]: %.2f" % vmax.magnitude
+    M.cost = oldcost
     return vmax
+
+def max_payload(M):
+    oldcost = M.cost
+    M.cost = 1./M["W_{pay}"]
+    oldsubw = M.substitutions["W_{pay}"]
+    del M.substitutions["W_{pay}"]
+    sol = M.localsolve("mosek")
 
 if __name__ == "__main__":
     M = Mission()
     sol = solve_jho(M)
-    vmax = max_speed(M)
+    # vmax = max_speed(M)
+    max_payload(M)
     LD = sol("C_L_Mission/Loiter/FlightSegment/AircraftPerf/WingAero")/sol("C_D_Mission/Loiter/FlightSegment/AircraftPerf")
 
     # M = Mission(DF70=False)
