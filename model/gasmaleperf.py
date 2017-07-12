@@ -194,11 +194,12 @@ class FlightState(Model):
                        Latm == Latm]
 
         V = Variable("V", "m/s", "true airspeed")
+        mfac = Variable("m_{fac}", 1.0, "-", "wind speed margin factor")
 
         if wind:
 
             V_wind = Variable("V_{wind}", 25, "m/s", "Wind speed")
-            constraints.extend([V >= V_wind])
+            constraints.extend([V/mfac >= V_wind])
 
         else:
 
@@ -206,7 +207,7 @@ class FlightState(Model):
             V_ref = Variable("V_{ref}", 25, "m/s", "Reference wind speed")
 
             constraints.extend([(V_wind/V_ref) >= 0.6462*(h/href) + 0.3538,
-                                V >= V_wind])
+                                V/mfac >= V_wind])
         return constraints
 
 class FlightSegment(Model):
@@ -346,13 +347,9 @@ class Mission(Model):
 
         return JHO, mission, loading, constraints
 
-    def process_result(self, sol):
-        print sol("MTOW")
-
-
 def test():
     "test method run by external CI"
-    _ = solve_jho()
+    _ = solve_jho(M)
 
 
 def solve_jho(M):
@@ -362,7 +359,8 @@ def solve_jho(M):
             "l_Mission/Aircraft/Empennage/TailBoom": 7.0,
             "AR_v": 1.5, "c_{root}": 15./12, "SM_{corr}": 0.5, "AR_h": 4, "k": 0.0,
             "(1-k/2)": 1, "d_0": 1, "R_Mission/Aircraft/Fuselage": 7./12,
-            "\\tau_Mission/Aircraft/Wing": 0.113661}
+            "\\tau_Mission/Aircraft/Wing": 0.113661, "k_{nose}": 2.4055,
+            "k_{bulk}": 4.3601, "k_{body}": 3.6518}
     M.substitutions.update(subs)
     for p in M.varkeys["P_{avn}"]:
         M.substitutions.update({p: 65})
@@ -371,7 +369,18 @@ def solve_jho(M):
     M.substitutions.update({"w_{lim}": 1})
     for vk in M.varkeys["w"]:
         M.substitutions.update({vk: 2})
-    return M.localsolve("mosek")
+    sol = M.localsolve("mosek", verbosity=0)
+
+    Vy = sol("V_Mission/Climb/FlightSegment/FlightState")[0]
+    print "Speed for best rate of climb [m/s]: Vy = %.3f" % Vy.magnitude
+
+    Vytop = sol("V_Mission/Climb/FlightSegment/FlightState")[-1]
+    print "Speed at top of climb [m/s] = %.3f" % Vytop.magnitude
+
+    vloiter = np.average(sol("V_Mission/Loiter/FlightSegment/FlightState").magnitude)
+    print "Design loiter speed [m/s] = %.3f" % vloiter
+
+    return sol
 
 def max_speed(M):
     oldcost = M.cost
@@ -382,6 +391,36 @@ def max_speed(M):
     print "Max Speed [m/s]: %.2f" % vmax.magnitude
     M.cost = oldcost
     return vmax
+
+def optimum_speeds(M):
+    for v in M.varkeys["m_{fac}"]:
+        mods = v.models
+        if "Climb" in mods or "Loiter" in mods or "Cruise" in mods:
+            if "FlightState" in mods:
+                M.substitutions.update({v: 0.001})
+
+    sol = M.localsolve("mosek", verbosity=0)
+
+    vmins = sol("V_Mission/Loiter/FlightSegment/FlightState")[0].magnitude
+    print ("optimum loiter speed for min power, "
+           "start of loiter [m/s] = %.3f" % vmins)
+
+    vmine = sol("V_Mission/Loiter/FlightSegment/FlightState")[-1].magnitude
+    print ("optimum loiter speed for min power, "
+           "end of loiter [m/s] = %.3f" % vmine)
+
+    vstr = "V_Mission/Cruise/FlightSegment/FlightState"
+    vcrin = sol(vstr).items()[0][1].magnitude
+    print "optimum cruise speed, inbound [m/s] = %.3f" % vcrin
+
+    vcrout = sol(vstr).items()[1][1].magnitude
+    print "optimum cruise speed, outbound [m/s] = %.3f" % vcrout
+
+    for v in M.varkeys["m_{fac}"]:
+        mods = v.models
+        if "Climb" in mods or "Loiter" in mods or "Cruise" in mods:
+            if "FlightState" in mods:
+                M.substitutions.update({v: 1})
 
 def max_payload(M):
     oldcost = M.cost
@@ -394,7 +433,8 @@ if __name__ == "__main__":
     M = Mission()
     sol = solve_jho(M)
     # vmax = max_speed(M)
-    max_payload(M)
+    # max_payload(M)
+    optimum_speeds(M)
     LD = sol("C_L_Mission/Loiter/FlightSegment/AircraftPerf/WingAero")/sol("C_D_Mission/Loiter/FlightSegment/AircraftPerf")
 
     # M = Mission(DF70=False)
