@@ -349,6 +349,7 @@ class Mission(Model):
 
 def test():
     "test method run by external CI"
+    M = Mission()
     _ = solve_jho(M)
 
 
