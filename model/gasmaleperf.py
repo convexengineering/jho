@@ -380,6 +380,16 @@ def solve_jho(M):
     vloiter = np.average(sol("V_Mission/Loiter/FlightSegment/FlightState").magnitude)
     print "Design loiter speed [m/s] = %.3f" % vloiter
 
+    rho = sol("\\rho_{sl}").items()[0][1]
+    S = sol("S_Mission/Aircraft/Wing")
+    w55 = sol("W_{zfw}")*(sol("W_{zfw}").magnitude + 5)/sol("W_{zfw}").magnitude
+
+    Vrot55 = ((2*w55/rho/S/1.39)**0.5).to("m/s")*1.5
+    Vrot150 = ((2*sol("MTOW")/rho/S/1.39)**0.5).to("m/s")*1.5
+
+    print "Rotation speed at 55 lbs [m/s] = %.3f" % Vrot55.magnitude
+    print "Rotation speed at 150 lbs [m/s] = %.3f" % Vrot150.magnitude
+
     return sol
 
 def max_speed(M):
@@ -445,7 +455,7 @@ if __name__ == "__main__":
     M = Mission()
     sol = solve_jho(M)
     # vmax = max_speed(M)
-    max_payload(M)
+    # max_payload(M)
     # optimum_speeds(M)
     LD = sol("C_L_Mission/Loiter/FlightSegment/AircraftPerf/WingAero")/sol("C_D_Mission/Loiter/FlightSegment/AircraftPerf")
 
