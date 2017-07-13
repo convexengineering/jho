@@ -426,15 +426,27 @@ def max_payload(M):
     oldcost = M.cost
     M.cost = 1./M["W_{pay}"]
     oldsubw = M.substitutions["W_{pay}"]
-    del M.substitutions["W_{pay}"]
-    sol = M.localsolve("mosek")
+    M.substitutions.update({"t_Mission/Loiter": 5.5})
+    oldsubhdot = M.substitutions["\\dot{h}_{min}"]
+    M.substitutions.update({"\\dot{h}_{min}": 10})
+    sp = M.sp()
+    del sp.substitutions["W_{pay}"]
+    sol = sp.localsolve("mosek")
+    wtot = sol("W_{pay}")
+    wpay = (wtot + 14.0/3.0)/(7.0/5.0)
+    mtow = sol("MTOW")
+    print "Max payload weight [lbf] = %.3f" % wpay
+    print "Max take off weight [lbf] = %.3f" % mtow
+    M.substitutions.update({"W_{pay}": oldsubw})
+    M.substitutions.update({"\\dot{h}_{min}": oldsubhdot})
+    M.cost = 1./M["t_Mission/Loiter"]
 
 if __name__ == "__main__":
     M = Mission()
     sol = solve_jho(M)
     # vmax = max_speed(M)
-    # max_payload(M)
-    optimum_speeds(M)
+    max_payload(M)
+    # optimum_speeds(M)
     LD = sol("C_L_Mission/Loiter/FlightSegment/AircraftPerf/WingAero")/sol("C_D_Mission/Loiter/FlightSegment/AircraftPerf")
 
     # M = Mission(DF70=False)
