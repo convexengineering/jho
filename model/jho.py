@@ -116,7 +116,8 @@ class AircraftLoading(Model):
     "aircraft loading model"
     def setup(self, aircraft, Wcent):
 
-        loading = [aircraft.wing.loading(aircraft.wing, Wcent)]
+        # loading = [aircraft.wing.loading(aircraft.wing, Wcent)]
+        loading = []
         loading.append(aircraft.fuselage.loading(Wcent))
 
         tbstate = TailBoomState()
@@ -319,6 +320,7 @@ class Mission(Model):
 
         JHO = Aircraft(Wfueltot, df70=DF70)
         loading = JHO.loading(Wcent)
+        wingl = JHO.wing.spar.loading(JHO.wing)
 
         climb1 = Climb(10, JHO, alt=np.linspace(0, 15000, 11)[1:], etap=0.508, wind=wind)
         cruise1 = Cruise(1, JHO, etap=0.684, R=180, wind=wind)
@@ -334,7 +336,8 @@ class Mission(Model):
             LS == mtow/JHO.wing["S"],
             loiter1["P_{total}"] >= (loiter1["P_{shaft}"] + (
                 loiter1["P_{avn}"] + JHO["P_{pay}"])
-                                     / loiter1["\\eta_{alternator}"])
+                                     / loiter1["\\eta_{alternator}"]),
+            Wcent == wingl["W"]
             ]
 
         for i, fs in enumerate(mission[1:]):
@@ -342,7 +345,7 @@ class Mission(Model):
                 mission[i]["W_{end}"][-1] == fs["W_{start}"][0]
                 ])
 
-        return JHO, mission, loading, constraints
+        return JHO, mission, loading, constraints, wingl
 
 def test():
     "test method run by external CI"

@@ -1,6 +1,8 @@
 " print performance numbers for jho "
 import numpy as np
+import matplotlib.pyplot as plt
 from jho import Mission
+plt.rcParams.update({'font.size':15})
 
 def jho_subs(model):
     """get solution for as-built Jungle Hawk Owl"""
@@ -163,6 +165,29 @@ def max_payload(model):
     model.substitutions.update({"\\dot{h}_{min}": oldsubhdot})
     model.cost = oldcost
 
+def plot_climbrate(result):
+    fig, ax = plt.subplots()
+    ax.plot(result("h_Mission/Climb/FlightSegment/FlightState").magnitude - 1500, result("\\dot{h}"), "k")
+    ax.set_xlabel("Altitude [ft]")
+    ax.set_ylabel("Climb Rate [ft/min]")
+    ax.set_xlim([0, 10000])
+    ax.grid()
+    return fig, ax
+
+def plot_glide(result):
+    LoD = np.mean(np.hstack([result(l)/result(d) for l, d in
+                             zip(result("C_L"), result("C_D"))]))
+    h = (result("h_Mission/Climb/FlightSegment/FlightState")
+         - result("h_{ref}_Mission/Climb/FlightSegment/FlightState")/10)
+    R = (LoD*h).to("nmi")
+    fig, ax = plt.subplots()
+    ax.plot(h, R, "k")
+    ax.set_xlabel("Altidue [ft]")
+    ax.set_ylabel("Glide Range [nmi]")
+    ax.grid()
+    ax.set_xlim([0, 10000])
+    return fig, ax
+
 def test():
     M = Mission(DF70=True)
     jho_subs(M)
@@ -180,3 +205,7 @@ if __name__ == "__main__":
     optimum_speeds(M)
     _ = max_speed(M)
     max_payload(M)
+    f, a = plot_climbrate(Sol)
+    f.savefig("crateh.jpg")
+    f, a = plot_glide(Sol)
+    f.savefig("gliderange.jpg")
