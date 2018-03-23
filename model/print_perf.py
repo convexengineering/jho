@@ -2,6 +2,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from jho import Mission
+from sens_chart import get_highestsens, plot_chart
 plt.rcParams.update({'font.size':15})
 
 def jho_subs(model):
@@ -10,7 +11,7 @@ def jho_subs(model):
     subs = {model.JHO.wing.planform.b: 24,
             model.JHO.emp.tailboom.l: 7.0,
             model.JHO.emp.vtail.lv: 7.0,
-            model.JHO.emp.vtail.planform.AR: 15,
+            model.JHO.emp.vtail.planform.AR: 1.46,
             model.JHO.wing.planform.croot: 15./12,
             "SMcorr": 0.5,
             model.JHO.emp.htail.planform.AR: 4,
@@ -209,3 +210,18 @@ if __name__ == "__main__":
     f.savefig("crateh.jpg")
     f, a = plot_glide(Sol)
     f.savefig("gliderange.jpg")
+
+    vns = {M.JHO.wing.planform.b: "$b$",
+           M.JHO.emp.tailboom.l: "$l_{\\mathrm{tailboom}}$",
+           M.JHO.wing.planform.croot: "$c_{\\mathrm{root}}$",
+           M.JHO.emp.tailboom.d0: "$d_{\\mathrm{tailboom}}$",
+           "R_Mission/Aircraft/Fuselage": "$R_{\\mathrm{fuse}}$",
+           M.JHO.wing.planform.tau: "\\tau",
+           "k_{nose}": "$k_{\\mathrm{nose}}$",
+           "k_{bulk}": "$k_{\\mathrm{bulk}}$",
+           "k_{body}": "$k_{\\mathrm{body}}$",
+           }
+    sd = get_highestsens(M, Sol, varnames=vns)
+    f, a = plot_chart(sd)
+    f.savefig("sensbarfix.pdf", bbox_inches="tight")
+

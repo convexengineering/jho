@@ -12,6 +12,7 @@ from helpers import summing_vars
 from gpkit import Model, Variable, Vectorize, units
 from gpkit.tools.autosweep import autosweep_1d
 import matplotlib.pyplot as plt
+from sens_chart import get_highestsens, plot_chart
 
 # pylint: disable=invalid-name
 
@@ -20,7 +21,7 @@ class Aircraft(Model):
     def setup(self, Wfueltot, df70=True):
 
         self.fuselage = Fuselage(Wfueltot)
-        self.wing = Wing(N=14)
+        self.wing = Wing(N=12)
         if df70:
             self.engine = DF70()
         else:
@@ -368,10 +369,17 @@ def test():
     model.localsolve("mosek")
 
 if __name__ == "__main__":
-    M = Mission(DF70=True)
+    M = Mission(DF70=False)
     M.substitutions[M.JHO.emp.vtail.Vv] = 0.04
-    M.cost = 1/M["t_Mission/Loiter"]
+    M.substitutions["t_Mission/Loiter"] = 6
+    M.substitutions["m_{fac}_Mission/Aircraft/Engine"] = 0.75
+    M.cost = M["MTOW"]
     sol = M.localsolve("mosek")
+
+    sd = get_highestsens(M, sol, N=15)
+    f, a = plot_chart(sd)
+    f.savefig("sensbarfree.pdf", bbox_inches="tight")
+
 
     # M = Mission(DF70=False)
     # M.cost = 1/M["t_Mission/Loiter"]
