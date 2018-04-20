@@ -31,7 +31,8 @@ def jho_subs(model):
         model.substitutions.update({t: 65})
     model.substitutions.update({model.JHO.wing.spar.wlim: 1})
     for vk in model.varkeys["w"]:
-        model.substitutions.update({vk: 2})
+        if "SparLoading" not in vk.models:
+            model.substitutions.update({vk: 2})
 
     del model.substitutions[model.JHO.emp.mfac]
     del model.substitutions[model.JHO.wing.mfac]
