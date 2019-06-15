@@ -40,7 +40,7 @@ def jho_subs(model):
     model.cost = (model.cost/model[model.JHO.emp.mfac]
                   / model[model.JHO.wing.mfac]
                   / model["m_{fac}_Mission/Aircraft/Fuselage"])
-    sol = model.localsolve("mosek", verbosity=0)
+    sol = model.localsolve(verbosity=0)
 
     subs = {model.JHO.wing.mfac: sol(model.JHO.wing.mfac),
             model.JHO.emp.mfac: sol(model.JHO.emp.mfac),
@@ -56,7 +56,7 @@ def perf_solve(model):
     "solve "
     del model.substitutions["t_Mission/Loiter"]
     model.cost = 1/model["t_Mission/Loiter"]
-    sol = model.localsolve("mosek", verbosity=0)
+    sol = model.localsolve(verbosity=0)
 
     mtow = sol("MTOW").magnitude
     print "MTOW [lbs] = %.2f" % mtow
@@ -91,7 +91,7 @@ def perf_solve(model):
         sol("V_Mission/Loiter/FlightSegment/FlightState").magnitude)
     print "design loiter speed [m/s] = %.3f" % vloiter
 
-    rho = sol("rhosl").items()[0][1]
+    rho = sol("rhosl_Mission/Cruise/FlightSegment/FlightState").values()[0]
     S = sol(model.JHO.wing.planform.S)
     w55 = sol("W_{zfw}")*(sol("W_{zfw}").magnitude + 5)/sol("W_{zfw}").magnitude
 
@@ -108,7 +108,7 @@ def max_speed(model):
     oldcost = model.cost
     model.cost = 1./np.prod(model["V_Mission/Loiter/FlightSegment/FlightState"])
     model.substitutions.update({"t_Mission/Loiter": 0.02})
-    sol = model.localsolve("mosek")
+    sol = model.localsolve()
     vmax = max(sol("V_Mission/Loiter/FlightSegment/FlightState")).magnitude
     rho = sol("\\rho_Mission/Loiter/FlightSegment/FlightState")[0].magnitude
     rhosl = 1.225
@@ -125,7 +125,7 @@ def optimum_speeds(model):
                 model.substitutions.update({v: 0.001})
 
     model.cost = 1/model["t_Mission/Loiter"]
-    sol = model.localsolve("mosek", verbosity=0)
+    sol = model.localsolve(verbosity=0)
 
     vmins = sol("V_Mission/Loiter/FlightSegment/FlightState")[0].magnitude
     print ("optimum loiter speed for min power, "
@@ -157,7 +157,7 @@ def max_payload(model):
     oldsubhdot = model.substitutions["\\dot{h}_{min}"]
     model.substitutions.update({"\\dot{h}_{min}": 10})
     del model.substitutions["W_{pay}"]
-    sol = model.localsolve("mosek")
+    sol = model.localsolve()
     wtot = sol("W_{pay}").magnitude
     wpay = (wtot + 14.0/3.0)/(7.0/5.0)
     mtow = sol("MTOW").magnitude
@@ -225,4 +225,3 @@ if __name__ == "__main__":
     sd = get_highestsens(M, Sol, varnames=vns)
     f, a = plot_chart(sd)
     f.savefig("sensbarfix.pdf", bbox_inches="tight")
-

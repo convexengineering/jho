@@ -8,7 +8,7 @@ from gpkitmodels.GP.aircraft.fuselage.cylindrical_fuselage import Fuselage
 from gpkitmodels.GP.aircraft.tail.empennage import Empennage
 from gpkitmodels.GP.aircraft.tail.tail_boom import TailBoomState
 from gpkitmodels.SP.aircraft.tail.tail_boom_flex import TailBoomFlexibility
-from helpers import summing_vars
+from gpkitmodels.tools.summing_constraintset import summing_vars
 from gpkit import Model, Variable, Vectorize, units
 from gpkit.tools.autosweep import autosweep_1d
 import matplotlib.pyplot as plt
@@ -366,7 +366,7 @@ def test():
     model = Mission()
     model.substitutions[model.JHO.emp.vtail.Vv] = 0.04
     model.cost = 1/model["t_Mission/Loiter"]
-    model.localsolve("mosek")
+    model.localsolve()
 
 if __name__ == "__main__":
     M = Mission(DF70=False)
@@ -394,5 +394,3 @@ if __name__ == "__main__":
     # ax.set_ylabel("Endurance [days]")
     # ax.grid()
     # fig.savefig("mtowtend.pdf")
-
-
