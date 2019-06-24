@@ -7,7 +7,7 @@ plt.rcParams.update({'font.size':15})
 
 def jho_subs(model):
     """get solution for as-built Jungle Hawk Owl"""
-    model.cost = 1/model["t_Mission/Loiter"]
+    model.cost = 1/model["Mission.Loiter.t"]
     subs = {model.JHO.wing.planform.b: 24,
             model.JHO.emp.tailboom.l: 7.0,
             model.JHO.emp.vtail.lv: 7.0,
@@ -17,13 +17,13 @@ def jho_subs(model):
             model.JHO.emp.htail.planform.AR: 4,
             model.JHO.emp.tailboom.k: 0.0,
             model.JHO.emp.tailboom.d0: 1,
-            "R_Mission/Aircraft/Fuselage": 7./12,
+            "Mission.Aircraft.Fuselage.R": 7./12,
             model.JHO.wing.planform.tau: 0.113661,
             "k_{nose}": 2.4055,
             "k_{bulk}": 4.3601, "k_{body}": 3.6518,
             model.JHO.emp.W: 4.096,
             model.JHO.wing.W: 14.979,
-            "W_Mission/Aircraft/Fuselage": 9.615}
+            "Mission.Aircraft.Fuselage.W": 9.615}
     model.substitutions.update(subs)
     for p in model.varkeys["P_{avn}"]:
         model.substitutions.update({p: 65})
@@ -36,26 +36,26 @@ def jho_subs(model):
 
     del model.substitutions[model.JHO.emp.mfac]
     del model.substitutions[model.JHO.wing.mfac]
-    del model.substitutions["m_{fac}_Mission/Aircraft/Fuselage"]
+    del model.substitutions["Mission.Aircraft.Fuselage.m_{fac}"]
     model.cost = (model.cost/model[model.JHO.emp.mfac]
                   / model[model.JHO.wing.mfac]
-                  / model["m_{fac}_Mission/Aircraft/Fuselage"])
+                  / model["Mission.Aircraft.Fuselage.m_{fac}"])
     sol = model.localsolve(verbosity=0)
 
     subs = {model.JHO.wing.mfac: sol(model.JHO.wing.mfac),
             model.JHO.emp.mfac: sol(model.JHO.emp.mfac),
-            "m_{fac}_Mission/Aircraft/Fuselage":
-            sol("m_{fac}_Mission/Aircraft/Fuselage")}
+            "Mission.Aircraft.Fuselage.m_{fac}":
+            sol("Mission.Aircraft.Fuselage.m_{fac}")}
     model.substitutions.update(subs)
 
     del model.substitutions[model.JHO.emp.W]
     del model.substitutions[model.JHO.wing.W]
-    del model.substitutions["W_Mission/Aircraft/Fuselage"]
+    del model.substitutions["Mission.Aircraft.Fuselage.W"]
 
 def perf_solve(model):
     "solve "
-    del model.substitutions["t_Mission/Loiter"]
-    model.cost = 1/model["t_Mission/Loiter"]
+    del model.substitutions["Mission.Loiter.t"]
+    model.cost = 1/model["Mission.Loiter.t"]
     sol = model.localsolve(verbosity=0)
 
     mtow = sol("MTOW").magnitude
@@ -67,7 +67,7 @@ def perf_solve(model):
     b = sol(model.JHO.wing.planform.b).magnitude
     print "Wing span [ft] = %.2f" % b
 
-    lfuse = sol("l_Mission/Aircraft/Fuselage")
+    lfuse = sol("Mission.Aircraft.Fuselage.l")
     ltail = sol(model.JHO.emp.tailboom.l)
     ljho = (lfuse + ltail).to("ft").magnitude
     print "Aicraft length [ft] = %.2f" % ljho
@@ -81,17 +81,17 @@ def perf_solve(model):
     croot = sol(model.JHO.wing.planform.croot).magnitude
     print "root chord [ft] = %.3f" % croot
 
-    Vy = sol("V_Mission/Climb/FlightSegment/FlightState")[0]
+    Vy = sol("Mission.Climb.FlightSegment.FlightState.V")[0]
     print "speed for best rate of climb [m/s]: Vy = %.3f" % Vy.magnitude
 
-    Vytop = sol("V_Mission/Climb/FlightSegment/FlightState")[-1]
+    Vytop = sol("Mission.Climb.FlightSegment.FlightState.V")[-1]
     print "speed at top of climb [m/s] = %.3f" % Vytop.magnitude
 
     vloiter = np.average(
-        sol("V_Mission/Loiter/FlightSegment/FlightState").magnitude)
+        sol("Mission.Loiter.FlightSegment.FlightState.V").magnitude)
     print "design loiter speed [m/s] = %.3f" % vloiter
 
-    rho = sol("rhosl_Mission/Cruise/FlightSegment/FlightState").values()[0]
+    rho = sol("Mission.Cruise.FlightSegment.FlightState.rhosl").values()[0]
     S = sol(model.JHO.wing.planform.S)
     w55 = sol("W_{zfw}")*(sol("W_{zfw}").magnitude + 5)/sol("W_{zfw}").magnitude
 
@@ -106,11 +106,11 @@ def perf_solve(model):
 def max_speed(model):
     " find maximum speed at altitude "
     oldcost = model.cost
-    model.cost = 1./np.prod(model["V_Mission/Loiter/FlightSegment/FlightState"])
-    model.substitutions.update({"t_Mission/Loiter": 0.02})
+    model.cost = 1./np.prod(model["Mission.Loiter.FlightSegment.FlightState.V"])
+    model.substitutions.update({"Mission.Loiter.t": 0.02})
     sol = model.localsolve()
-    vmax = max(sol("V_Mission/Loiter/FlightSegment/FlightState")).magnitude
-    rho = sol("\\rho_Mission/Loiter/FlightSegment/FlightState")[0].magnitude
+    vmax = max(sol("Mission.Loiter.FlightSegment.FlightState.V")).magnitude
+    rho = sol("Mission.Loiter.FlightSegment.FlightState.\\rho")[0].magnitude
     rhosl = 1.225
     print "Max Speed [m/s]: %.2f" % (vmax*rhosl/rho)
     model.cost = oldcost
@@ -124,18 +124,18 @@ def optimum_speeds(model):
             if "FlightState" in mods:
                 model.substitutions.update({v: 0.001})
 
-    model.cost = 1/model["t_Mission/Loiter"]
+    model.cost = 1/model["Mission.Loiter.t"]
     sol = model.localsolve(verbosity=0)
 
-    vmins = sol("V_Mission/Loiter/FlightSegment/FlightState")[0].magnitude
+    vmins = sol("Mission.Loiter.FlightSegment.FlightState.V")[0].magnitude
     print ("optimum loiter speed for min power, "
            "start of loiter [m/s] = %.3f" % vmins)
 
-    vmine = sol("V_Mission/Loiter/FlightSegment/FlightState")[-1].magnitude
+    vmine = sol("Mission.Loiter.FlightSegment.FlightState.V")[-1].magnitude
     print ("optimum loiter speed for min power, "
            "end of loiter [m/s] = %.3f" % vmine)
 
-    vstr = "V_Mission/Cruise/FlightSegment/FlightState"
+    vstr = "Mission.Cruise.FlightSegment.FlightState.V"
     vcrin = sol(vstr).items()[0][1].magnitude
     print "optimum cruise speed, inbound [m/s] = %.3f" % vcrin
 
@@ -153,7 +153,7 @@ def max_payload(model):
     oldcost = model.cost
     model.cost = 1./model["W_{pay}"]
     oldsubw = model.substitutions["W_{pay}"]
-    model.substitutions.update({"t_Mission/Loiter": 5.5})
+    model.substitutions.update({"Mission.Loiter.t": 5.5})
     oldsubhdot = model.substitutions["\\dot{h}_{min}"]
     model.substitutions.update({"\\dot{h}_{min}": 10})
     del model.substitutions["W_{pay}"]
@@ -169,7 +169,7 @@ def max_payload(model):
 
 def plot_climbrate(result):
     fig, ax = plt.subplots()
-    ax.plot(result("h_Mission/Climb/FlightSegment/FlightState").magnitude - 1500, result("\\dot{h}"), "k")
+    ax.plot(result("h.Mission.Climb.FlightSegment.FlightState").magnitude - 1500, result("\\dot{h}"), "k")
     ax.set_xlabel("Altitude [ft]")
     ax.set_ylabel("Climb Rate [ft/min]")
     ax.set_xlim([0, 10000])
@@ -179,8 +179,8 @@ def plot_climbrate(result):
 def plot_glide(result):
     LoD = np.mean(np.hstack([result(l)/result(d) for l, d in
                              zip(result("CL"), result("C_D"))]))
-    h = (result("h_Mission/Climb/FlightSegment/FlightState")
-         - result("h_{ref}_Mission/Climb/FlightSegment/FlightState")/10)
+    h = (result("h.Mission.Climb.FlightSegment.FlightState")
+         - result("h_{ref}.Mission.Climb.FlightSegment.FlightState")/10)
     R = (LoD*h).to("nmi")
     fig, ax = plt.subplots()
     ax.plot(h, R, "k")
@@ -193,7 +193,7 @@ def plot_glide(result):
 def test():
     M = Mission(DF70=True)
     jho_subs(M)
-    M.substitutions["t_Mission/Loiter"] = 5
+    M.substitutions["Mission.Loiter.t"] = 5
     Sol = perf_solve(M)
     optimum_speeds(M)
     _ = max_speed(M)
@@ -202,26 +202,26 @@ def test():
 if __name__ == "__main__":
     M = Mission(DF70=True)
     jho_subs(M)
-    M.substitutions["t_Mission/Loiter"] = 5
+    M.substitutions["Mission.Loiter.t"] = 5
     Sol = perf_solve(M)
     optimum_speeds(M)
     _ = max_speed(M)
     max_payload(M)
-    f, a = plot_climbrate(Sol)
-    f.savefig("crateh.jpg")
-    f, a = plot_glide(Sol)
-    f.savefig("gliderange.jpg")
-
-    vns = {M.JHO.wing.planform.b: "$b$",
-           M.JHO.emp.tailboom.l: "$l_{\\mathrm{tailboom}}$",
-           M.JHO.wing.planform.croot: "$c_{\\mathrm{root}}$",
-           M.JHO.emp.tailboom.d0: "$d_{\\mathrm{tailboom}}$",
-           "R_Mission/Aircraft/Fuselage": "$R_{\\mathrm{fuse}}$",
-           M.JHO.wing.planform.tau: "\\tau",
-           "k_{nose}": "$k_{\\mathrm{nose}}$",
-           "k_{bulk}": "$k_{\\mathrm{bulk}}$",
-           "k_{body}": "$k_{\\mathrm{body}}$",
-           }
-    sd = get_highestsens(M, Sol, varnames=vns)
-    f, a = plot_chart(sd)
-    f.savefig("sensbarfix.pdf", bbox_inches="tight")
+    # f, a = plot_climbrate(Sol)
+    # f.savefig("crateh.jpg")
+    # f, a = plot_glide(Sol)
+    # f.savefig("gliderange.jpg")
+    #
+    # vns = {M.JHO.wing.planform.b: "$b$",
+    #        M.JHO.emp.tailboom.l: "$l_{\\mathrm{tailboom}}$",
+    #        M.JHO.wing.planform.croot: "$c_{\\mathrm{root}}$",
+    #        M.JHO.emp.tailboom.d0: "$d_{\\mathrm{tailboom}}$",
+    #        "Mission.Aircraft.Fuselage.R": "$R_{\\mathrm{fuse}}$",
+    #        M.JHO.wing.planform.tau: "\\tau",
+    #        "k_{nose}": "$k_{\\mathrm{nose}}$",
+    #        "k_{bulk}": "$k_{\\mathrm{bulk}}$",
+    #        "k_{body}": "$k_{\\mathrm{body}}$",
+    #        }
+    # sd = get_highestsens(M, Sol, varnames=vns)
+    # f, a = plot_chart(sd)
+    # f.savefig("sensbarfix.pdf", bbox_inches="tight")

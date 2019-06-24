@@ -365,14 +365,14 @@ def test():
     "test method run by external CI"
     model = Mission()
     model.substitutions[model.JHO.emp.vtail.Vv] = 0.04
-    model.cost = 1/model["t_Mission/Loiter"]
+    model.cost = 1/model["Mission.Loiter.t"]
     model.localsolve()
 
 if __name__ == "__main__":
     M = Mission(DF70=False)
     M.substitutions[M.JHO.emp.vtail.Vv] = 0.04
-    M.substitutions["t_Mission/Loiter"] = 6
-    M.substitutions["m_{fac}_Mission/Aircraft/Engine"] = 0.75
+    M.substitutions["Mission.Loiter.t"] = 6
+    M.substitutions["Mission.Aircraft.Engine.m_{fac}"] = 0.75
     M.cost = M["MTOW"]
     sol = M.localsolve("mosek")
 
@@ -382,7 +382,7 @@ if __name__ == "__main__":
 
 
     # M = Mission(DF70=False)
-    # M.cost = 1/M["t_Mission/Loiter"]
+    # M.cost = 1/M["t.Mission.Loiter"]
     # lower = 50
     # upper = 1000
     # xmin_ = np.linspace(lower, upper, 100)
