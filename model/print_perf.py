@@ -59,47 +59,47 @@ def perf_solve(model):
     sol = model.localsolve(verbosity=0)
 
     mtow = sol("MTOW").magnitude
-    print "MTOW [lbs] = %.2f" % mtow
+    print("MTOW [lbs] = %.2f" % mtow)
 
     wzfw = sol("W_{zfw}").magnitude
-    print "Zero fuel weight [lbs] = %.2f" % wzfw
+    print("Zero fuel weight [lbs] = %.2f" % wzfw)
 
     b = sol(model.JHO.wing.planform.b).magnitude
-    print "Wing span [ft] = %.2f" % b
+    print("Wing span [ft] = %.2f" % b)
 
     lfuse = sol("Mission.Aircraft.Fuselage.l")
     ltail = sol(model.JHO.emp.tailboom.l)
     ljho = (lfuse + ltail).to("ft").magnitude
-    print "Aicraft length [ft] = %.2f" % ljho
+    print("Aicraft length [ft] = %.2f" % ljho)
 
     AR = sol(model.JHO.wing.planform.AR)
-    print "Aspect ratio = %.2f" % AR
+    print("Aspect ratio = %.2f" % AR)
 
     cmac = sol(model.JHO.wing.planform.cmac).magnitude
-    print "mean aerodynamic chord [ft] = %.4f" % cmac
+    print("mean aerodynamic chord [ft] = %.4f" % cmac)
 
     croot = sol(model.JHO.wing.planform.croot).magnitude
-    print "root chord [ft] = %.3f" % croot
+    print("root chord [ft] = %.3f" % croot)
 
     Vy = sol("Mission.Climb.FlightSegment.FlightState.V")[0]
-    print "speed for best rate of climb [m/s]: Vy = %.3f" % Vy.magnitude
+    print("speed for best rate of climb [m/s]: Vy = %.3f" % Vy.magnitude)
 
     Vytop = sol("Mission.Climb.FlightSegment.FlightState.V")[-1]
-    print "speed at top of climb [m/s] = %.3f" % Vytop.magnitude
+    print("speed at top of climb [m/s] = %.3f" % Vytop.magnitude)
 
     vloiter = np.average(
         sol("Mission.Loiter.FlightSegment.FlightState.V").magnitude)
-    print "design loiter speed [m/s] = %.3f" % vloiter
+    print("design loiter speed [m/s] = %.3f" % vloiter)
 
-    rho = sol("Mission.Cruise.FlightSegment.FlightState.rhosl").values()[0]
+    rho, _ = sol("Mission.Cruise.FlightSegment.FlightState.rhosl").values()
     S = sol(model.JHO.wing.planform.S)
     w55 = sol("W_{zfw}")*(sol("W_{zfw}").magnitude + 5)/sol("W_{zfw}").magnitude
 
     Vrot55 = ((2*w55/rho/S/1.39)**0.5).to("m/s")*1.5
     Vrot150 = ((2*sol("MTOW")/rho/S/1.39)**0.5).to("m/s")*1.5
 
-    print "rotation speed at 55 lbs [m/s] = %.3f" % Vrot55.magnitude
-    print "rotation speed at 150 lbs [m/s] = %.3f" % Vrot150.magnitude
+    print("rotation speed at 55 lbs [m/s] = %.3f" % Vrot55.magnitude)
+    print("rotation speed at 150 lbs [m/s] = %.3f" % Vrot150.magnitude)
 
     return sol
 
@@ -112,7 +112,7 @@ def max_speed(model):
     vmax = max(sol("Mission.Loiter.FlightSegment.FlightState.V")).magnitude
     rho = sol("Mission.Loiter.FlightSegment.FlightState.\\rho")[0].magnitude
     rhosl = 1.225
-    print "Max Speed [m/s]: %.2f" % (vmax*rhosl/rho)
+    print("Max Speed [m/s]: %.2f" % (vmax*rhosl/rho))
     model.cost = oldcost
     return vmax
 
@@ -136,11 +136,11 @@ def optimum_speeds(model):
            "end of loiter [m/s] = %.3f" % vmine)
 
     vstr = "Mission.Cruise.FlightSegment.FlightState.V"
-    vcrin = sol(vstr).items()[0][1].magnitude
-    print "optimum cruise speed, inbound [m/s] = %.3f" % vcrin
+    vcrin = list(sol(vstr).items())[0][1].magnitude
+    print("optimum cruise speed, inbound [m/s] = %.3f" % vcrin)
 
-    vcrout = sol(vstr).items()[1][1].magnitude
-    print "optimum cruise speed, outbound [m/s] = %.3f" % vcrout
+    vcrout = list(sol(vstr).items())[1][1].magnitude
+    print("optimum cruise speed, outbound [m/s] = %.3f" % vcrout)
 
     for v in model.varkeys["m_{fac}"]:
         mods = v.models
@@ -161,8 +161,8 @@ def max_payload(model):
     wtot = sol("W_{pay}").magnitude
     wpay = (wtot + 14.0/3.0)/(7.0/5.0)
     mtow = sol("MTOW").magnitude
-    print "Max payload weight [lbf] = %.3f" % wpay
-    print "Max take off weight [lbf] = %.3f" % mtow
+    print("Max payload weight [lbf] = %.3f" % wpay)
+    print("Max take off weight [lbf] = %.3f" % mtow)
     model.substitutions.update({"W_{pay}": oldsubw})
     model.substitutions.update({"\\dot{h}_{min}": oldsubhdot})
     model.cost = oldcost

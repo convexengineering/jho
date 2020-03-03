@@ -369,18 +369,16 @@ def test():
     model.localsolve()
 
 if __name__ == "__main__":
-    M = Mission(DF70=False)
-    M.substitutions[M.JHO.emp.vtail.Vv] = 0.04
-    M.substitutions["Mission.Loiter.t"] = 6
-    M.substitutions["Mission.Aircraft.Engine.m_{fac}"] = 0.75
-    M.cost = M["MTOW"]
-    sol = M.localsolve("mosek")
-
-    sd = get_highestsens(M, sol, N=15)
-    f, a = plot_chart(sd)
-    f.savefig("sensbarfree.pdf", bbox_inches="tight")
-
-
+    test()
+    # M = Mission(DF70=False)
+    # M.substitutions[M.JHO.emp.vtail.Vv] = 0.04
+    # M.substitutions["Mission.Loiter.t"] = 6
+    # M.substitutions["Mission.Aircraft.Engine.m_{fac}"] = 0.75
+    # M.cost = M["MTOW"]
+    # sol = M.localsolve()
+    # sd = get_highestsens(M, sol, N=15)
+    # f, a = plot_chart(sd)
+    # f.savefig("sensbarfree.pdf", bbox_inches="tight")
     # M = Mission(DF70=False)
     # M.cost = 1/M["t.Mission.Loiter"]
     # lower = 50
